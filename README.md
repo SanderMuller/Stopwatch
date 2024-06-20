@@ -60,6 +60,12 @@ $stopwatch = Stopwatch::start();
 
 // Do something
 
+$stopwatch->checkpoint('First checkpoint');
+
+// Do something more
+
+$stopwatch->checkpoint('Second checkpoint');
+
 echo $stopwatch->toHtml();
 // Or in Laravel
 {{ $stopwatch }}
