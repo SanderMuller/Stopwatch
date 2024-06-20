@@ -43,6 +43,16 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
         return $this;
     }
 
+    /**
+     * @alias
+     * @see self::checkpoint()
+     * @param array{array-key, int|float|string|null|bool|Stringable}|null $metadata
+     */
+    public function lap(string $label, ?array $metadata = null): self
+    {
+        return $this->checkpoint($label, $metadata);
+    }
+
     public function finish(): self
     {
         return once(function (): self {
@@ -52,6 +62,24 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
 
             return $this;
         });
+    }
+
+    /**
+     * @alias
+     * @see self::finish()
+     */
+    public function stop(): self
+    {
+        return $this->finish();
+    }
+
+    /**
+     * @alias
+     * @see self::finish()
+     */
+    public function end(): self
+    {
+        return $this->finish();
     }
 
     public function totalRunDuration(): CarbonInterval
@@ -69,7 +97,7 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
 
     private function totalRunDurationReadable(): string
     {
-        return $this->totalRunDuration()->totalMilliseconds . 'ms';
+        return "{$this->totalRunDuration()->totalMilliseconds}ms";
     }
 
     public function dd(mixed ...$args): never
