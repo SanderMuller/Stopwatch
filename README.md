@@ -1,4 +1,4 @@
-# Stopwatch for PHP
+# Stopwatch for PHP & Laravel
 
 Easily measure the execution time of parts of your application
 
