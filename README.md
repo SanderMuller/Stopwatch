@@ -49,7 +49,9 @@ echo (string) $stopwatch;
 
 ### Render as HTML
 
-Render a neat HTML output showing the total execution time, each checkpoint and the time between each checkpoint
+Render a neat HTML output showing the total execution time, each checkpoint and the time between each checkpoint.
+
+The checkpoints that took up most of the time will be highlighted.
 
 ```php
 use SanderMuller\Stopwatch\Stopwatch;
@@ -62,6 +64,8 @@ echo $stopwatch->toHtml();
 // Or in Laravel
 {{ $stopwatch }}
 ```
+
+![rendered-stopwatch.png](rendered-stopwatch.png)
 
 ### Manually stop the stopwatch
 
