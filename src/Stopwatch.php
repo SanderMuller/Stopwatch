@@ -7,7 +7,6 @@ use Carbon\CarbonInterval;
 use Exception;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Support\Traits\Dumpable;
 use Override;
 use Stringable;
 
@@ -16,8 +15,6 @@ use Stringable;
  */
 final class Stopwatch implements Arrayable, Htmlable, Stringable
 {
-    use Dumpable;
-
     private readonly CarbonImmutable $startTime;
 
     private ?CarbonImmutable $endTime = null;
@@ -73,6 +70,22 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
     private function totalRunDurationReadable(): string
     {
         return $this->totalRunDuration()->totalMilliseconds . 'ms';
+    }
+
+    public function dd(mixed ...$args): never
+    {
+        $this->dump(...$args);
+
+        /** @noinspection ForgottenDebugOutputInspection */
+        dd();
+    }
+
+    public function dump(mixed ...$args): self
+    {
+        /** @noinspection ForgottenDebugOutputInspection */
+        dump($this, ...$args);
+
+        return $this;
     }
 
     #[Override]
