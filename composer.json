@@ -1,0 +1,53 @@
+{
+    "name": "sandermuller/stopwatch",
+    "description": "Stopwatch to measure execution times for Laravel and PHP projects",
+    "keywords": ["PHP", "Laravel", "Stopwatch"],
+    "homepage": "https://github.com/SanderMuller/Stopwatch",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Sander Muller",
+            "email": "info@scode.com",
+            "role": "Developer"
+        }
+    ],
+    "prefer-stable": true,
+    "minimum-stability": "stable",
+    "require": {
+        "php": "^8.3",
+        "illuminate/collections": "^10.0|^11.0",
+        "illuminate/support": "^10.0|^11.0",
+        "nesbot/carbon": "^3.5"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.15",
+        "nunomaduro/collision": "^8.1",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^1.10",
+        "phpstan/phpstan-deprecation-rules": "^1.2",
+        "phpstan/phpstan-strict-rules": "^1.6",
+        "rector/rector": "^1.0",
+        "roave/security-advisories": "dev-latest",
+        "tomasvotruba/type-coverage": "^0.3.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "SanderMuller\\Stopwatch\\": "src"
+        }
+    },
+    "scripts": {
+        "phpstan": "vendor/bin/phpstan analyse",
+        "format": "vendor/bin/pint",
+        "rector": "vendor/bin/rector process"
+    },
+    "config": {
+        "platform": {
+            "php": "8.3.8"
+        },
+        "sort-packages": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    }
+}

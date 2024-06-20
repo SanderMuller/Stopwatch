@@ -1,0 +1,28 @@
+includes:
+    - phpstan-baseline.neon
+    - phar://phpstan.phar/conf/bleedingEdge.neon
+
+parameters:
+    tmpDir: .cache/phpstan
+
+    paths:
+        - src
+
+    type_coverage:
+        return: 100
+        param: 100
+        property: 100
+        # also, how many files has declare strict types
+        declare: 100
+
+    # The level ranges from 0 to 9 and the latter is the highest level
+    # more info at https://phpstan.org/user-guide/rule-levels
+    level: 9
+
+    strictRules:
+        allRules: true
+
+    # Optional for having a clickable link to PHPStorm
+    editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'
+
+    treatPhpDocTypesAsCertain: false

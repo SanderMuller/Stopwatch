@@ -1,0 +1,30 @@
+vendor
+auth.json
+composer.lock
+
+# IDE
+.phpstorm.meta.php
+_ide_helper_models.php
+_ide_helper.php
+_ide_macros.php
+nbproject/
+nbproject/private/
+.idea/*
+!/.idea/codeStyles
+
+# JS
+node_modules
+npm-debug.log
+yarn-error.log
+
+# MacOS
+.DS_STORE
+
+# Environment
+.env
+.env.*
+!.env.example
+!.env.ci
+.cache
+logs
+.phpactor.json
