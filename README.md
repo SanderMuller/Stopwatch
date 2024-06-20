@@ -1,6 +1,6 @@
 # Stopwatch for PHP & Laravel
 
-Easily measure the execution time of parts of your application/code and profile the performance to find bottlenecks
+Easily profile of parts of your application/code and measure the performance to expose the bottlenecks
 
 ## Installation
 
