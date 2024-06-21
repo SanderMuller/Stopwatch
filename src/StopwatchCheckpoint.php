@@ -24,7 +24,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
     public string $timeSinceLastCheckpointFormatted;
 
     /**
-     * @param array{array-key, int|float|string|null|bool|Stringable}|null $metadata
+     * @param array{int|string, int|float|string|null|bool|Stringable}|null $metadata
      */
     public function __construct(
         public string   $label,
@@ -104,7 +104,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
      * @return array{
      *     label: string,
      *     time: string,
-     *     metadata: array{array-key, int|float|string|null|bool|Stringable}|null,
+     *     metadata: array{int|string, int|float|string|null|bool|Stringable}|null,
      *     totalTimeElapsedMs: int,
      *     totalTimeElapsedFormatted: string,
      *     timeSinceLastCheckpointMs: int,

@@ -14,7 +14,7 @@ use Stringable;
 final class StopwatchCheckpointCollection extends Collection
 {
     /**
-     * @param array{array-key, int|float|string|null|bool|Stringable}|null $metadata
+     * @param array{int|string, int|float|string|null|bool|Stringable}|null $metadata
      */
     public function addCheckpoint(string $label, ?array $metadata, CarbonImmutable $stopwatchStartTime): self
     {
