@@ -4,7 +4,6 @@ namespace SanderMuller\Stopwatch;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
-use Stringable;
 
 /**
  * @extends Collection<array-key, StopwatchCheckpoint>
@@ -14,7 +13,7 @@ use Stringable;
 final class StopwatchCheckpointCollection extends Collection
 {
     /**
-     * @param array{int|string, int|float|string|null|bool|Stringable}|null $metadata
+     * @param array{int|string, mixed}|null $metadata
      */
     public function addCheckpoint(string $label, ?array $metadata, CarbonImmutable $stopwatchStartTime): self
     {

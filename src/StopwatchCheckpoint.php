@@ -24,7 +24,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
     public string $timeSinceLastCheckpointFormatted;
 
     /**
-     * @param array{int|string, int|float|string|null|bool|Stringable}|null $metadata
+     * @param array{int|string, mixed}|null $metadata
      */
     public function __construct(
         public string   $label,
@@ -91,7 +91,13 @@ final readonly class StopwatchCheckpoint implements Arrayable
         }
 
         $contents = collect($this->metadata)
-            ->implode(static fn (int|float|string|null|bool|Stringable $value, string|int $key): string => "<strong>{$key}:</strong> {$value}<br/>");
+            ->implode(static function (mixed $value, string|int $key): string {
+                if (! is_scalar($value) && ! $value instanceof Stringable) {
+                    $value = 'non-scalar value (' . gettype($value) . ')';
+                }
+
+                return "<strong>{$key}:</strong> {$value}<br/>";
+            });
 
         return <<<HTML
             <div style="padding: 5px 10px; margin: 5px 0 0; background-color: #fcfcfc; border: 1px solid rgb(243 244 246); border-radius: 5px; line-height: 1.2;">
@@ -104,7 +110,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
      * @return array{
      *     label: string,
      *     time: string,
-     *     metadata: array{int|string, int|float|string|null|bool|Stringable}|null,
+     *     metadata: array{int|string, mixed}|null,
      *     totalTimeElapsedMs: int,
      *     totalTimeElapsedFormatted: string,
      *     timeSinceLastCheckpointMs: int,
