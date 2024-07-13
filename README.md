@@ -32,7 +32,7 @@ $stopwatch->checkpoint('First checkpoint');
 $stopwatch->lap('Second checkpoint');
 ```
 
-### Get the total run duration
+### Display the total run duration
 
 ```php
 use SanderMuller\Stopwatch\Stopwatch;
