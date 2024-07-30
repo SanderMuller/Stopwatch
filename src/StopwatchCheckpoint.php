@@ -5,7 +5,6 @@ namespace SanderMuller\Stopwatch;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterval;
 use Illuminate\Contracts\Support\Arrayable;
-use Override;
 use Stringable;
 
 /**
@@ -34,10 +33,10 @@ final readonly class StopwatchCheckpoint implements Arrayable
     ) {
         $this->time = CarbonImmutable::now();
 
-        $this->timeSinceStopwatchStart = $this->time->diffAsCarbonInterval($stopwatchStartTime)->cascade();
+        $this->timeSinceStopwatchStart = $this->time->diffAsCarbonInterval($stopwatchStartTime, absolute: true)->cascade();
 
         $this->timeSinceLastCheckpoint = $previousCheckpoint !== null
-            ? $this->time->diffAsCarbonInterval($previousCheckpoint->time)->cascade()
+            ? $this->time->diffAsCarbonInterval($previousCheckpoint->time, absolute: true)->cascade()
             : $this->timeSinceStopwatchStart;
 
         $this->timeSinceLastCheckpointFormatted = round($this->timeSinceLastCheckpoint->totalMilliseconds, 1) . 'ms';
@@ -117,7 +116,6 @@ final readonly class StopwatchCheckpoint implements Arrayable
      *     timeSinceLastCheckpointFormatted: string,
      * }
      */
-    #[Override]
     public function toArray(): array
     {
         return [

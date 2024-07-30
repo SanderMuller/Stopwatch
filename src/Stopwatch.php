@@ -7,7 +7,6 @@ use Carbon\CarbonInterval;
 use Exception;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Htmlable;
-use Override;
 use Stringable;
 
 /**
@@ -91,13 +90,15 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
                 throw new Exception('Stopwatch has not been finished yet.');
             }
 
-            return $this->endTime->diffAsCarbonInterval($this->startTime);
+            return $this->endTime->diffAsCarbonInterval($this->startTime, absolute: true);
         });
     }
 
     private function totalRunDurationReadable(): string
     {
-        return "{$this->totalRunDuration()->totalMilliseconds}ms";
+        $ms = round($this->totalRunDuration()->totalMilliseconds, 1);
+
+        return "{$ms}ms";
     }
 
     public function dd(mixed ...$args): never
@@ -116,7 +117,6 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
         return $this;
     }
 
-    #[Override]
     public function toHtml(): string
     {
         $this->finish();
@@ -183,7 +183,6 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
         return $this->totalRunDurationReadable();
     }
 
-    #[Override]
     public function __toString(): string
     {
         return $this->toString();
@@ -198,7 +197,6 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
      *     totalRunDurationMs: int,
      * }
      */
-    #[Override]
     public function toArray(): array
     {
         $this->finish();
