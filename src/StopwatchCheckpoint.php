@@ -33,10 +33,10 @@ final readonly class StopwatchCheckpoint implements Arrayable
     ) {
         $this->time = CarbonImmutable::now();
 
-        $this->timeSinceStopwatchStart = $this->time->diffAsCarbonInterval($stopwatchStartTime, absolute: true)->cascade();
+        $this->timeSinceStopwatchStart = $stopwatchStartTime->diffAsCarbonInterval($this->time, absolute: true)->cascade();
 
         $this->timeSinceLastCheckpoint = $previousCheckpoint !== null
-            ? $this->time->diffAsCarbonInterval($previousCheckpoint->time, absolute: true)->cascade()
+            ? $previousCheckpoint->time->diffAsCarbonInterval($this->time, absolute: true)->cascade()
             : $this->timeSinceStopwatchStart;
 
         $this->timeSinceLastCheckpointFormatted = round($this->timeSinceLastCheckpoint->totalMilliseconds, 1) . 'ms';

@@ -90,7 +90,7 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
                 throw new Exception('Stopwatch has not been finished yet.');
             }
 
-            return $this->endTime->diffAsCarbonInterval($this->startTime, absolute: true);
+            return $this->startTime->diffAsCarbonInterval($this->endTime, absolute: true);
         });
     }
 
