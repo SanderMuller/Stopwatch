@@ -38,7 +38,7 @@
         }
     },
     "scripts": {
-        "phpstan": "vendor/bin/phpstan analyse",
+        "phpstan": "vendor/bin/phpstan analyse --memory-limit=2G -v",
         "format": "vendor/bin/pint",
         "rector": "vendor/bin/rector process"
     },
