@@ -33,7 +33,7 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
     }
 
     /**
-     * @param array{int|string, mixed}|null $metadata
+     * @param array{array-key, mixed}|null $metadata
      */
     public function checkpoint(string $label, ?array $metadata = null): self
     {
@@ -45,7 +45,7 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
     /**
      * @alias
      * @see self::checkpoint()
-     * @param array{int|string, mixed}|null $metadata
+     * @param array{array-key, mixed}|null $metadata
      */
     public function lap(string $label, ?array $metadata = null): self
     {
@@ -192,7 +192,7 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
      * @return array{
      *     startTime: non-falsy-string,
      *     endTime: non-falsy-string|null,
-     *     checkpoints: array<int|string, mixed>,
+     *     checkpoints: array<array-key, mixed>,
      *     totalRunDuration: string,
      *     totalRunDurationMs: int,
      * }

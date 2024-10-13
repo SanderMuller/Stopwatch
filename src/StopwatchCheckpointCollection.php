@@ -13,7 +13,7 @@ use Illuminate\Support\Collection;
 final class StopwatchCheckpointCollection extends Collection
 {
     /**
-     * @param array{int|string, mixed}|null $metadata
+     * @param array{array-key, mixed}|null $metadata
      */
     public function addCheckpoint(string $label, ?array $metadata, CarbonImmutable $stopwatchStartTime): self
     {
