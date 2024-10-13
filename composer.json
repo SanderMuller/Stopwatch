@@ -22,13 +22,13 @@
         "symfony/var-dumper": "^6|^7"
     },
     "require-dev": {
-        "laravel/pint": "^1.15",
+        "laravel/pint": "^1.18",
         "nunomaduro/collision": "^8.1",
         "phpstan/extension-installer": "^1.4",
-        "phpstan/phpstan": "^1.10",
+        "phpstan/phpstan": "^1.12",
         "phpstan/phpstan-deprecation-rules": "^1.2",
         "phpstan/phpstan-strict-rules": "^1.6",
-        "rector/rector": "^1.0",
+        "rector/rector": "^1.2",
         "roave/security-advisories": "dev-latest",
         "tomasvotruba/type-coverage": "^0.3.1 || ^1.0.0"
     },

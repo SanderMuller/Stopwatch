@@ -7,6 +7,10 @@
         "type_declaration_spaces": false,
         "nullable_type_declaration": false,
         "nullable_type_declaration_for_default_null_value": false,
+        "new_with_parentheses": {
+            "anonymous_class": false,
+            "named_class": true
+        },
         "concat_space": {
             "spacing": "one"
         },
