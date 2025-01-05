@@ -39,7 +39,7 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
      */
     public function checkpoint(string $label, ?array $metadata = null): self
     {
-        if ($this->endTime !== null) {
+        if ($this->endTime instanceof CarbonImmutable) {
             return $this;
         }
 
@@ -99,7 +99,7 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
         return once(function (): CarbonInterval {
             $this->finish();
 
-            if ($this->endTime === null) {
+            if (! $this->endTime instanceof CarbonImmutable) {
                 throw new Exception('Stopwatch has not been finished yet.');
             }
 

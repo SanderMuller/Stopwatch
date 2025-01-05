@@ -35,7 +35,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
 
         $this->timeSinceStopwatchStart = $stopwatchStartTime->diffAsCarbonInterval($this->time, absolute: true)->cascade();
 
-        $this->timeSinceLastCheckpoint = $previousCheckpoint !== null
+        $this->timeSinceLastCheckpoint = $previousCheckpoint instanceof StopwatchCheckpoint
             ? $previousCheckpoint->time->diffAsCarbonInterval($this->time, absolute: true)->cascade()
             : $this->timeSinceStopwatchStart;
 

@@ -1,8 +1,6 @@
 <?php declare(strict_types=1);
 
 use Rector\Caching\ValueObject\Storage\FileCacheStorage;
-use Rector\CodingStyle\Rector\Encapsed\EncapsedStringsToSprintfRector;
-use Rector\CodingStyle\Rector\If_\NullableCompareToNullRector;
 use Rector\Config\RectorConfig;
 use Rector\DeadCode\Rector\PropertyProperty\RemoveNullPropertyInitializationRector;
 use Rector\DeadCode\Rector\Stmt\RemoveUnreachableStatementRector;
@@ -45,7 +43,7 @@ return RectorConfig::configure()
         typeDeclarations: true,
         privatization: true,
         naming: false,
-        instanceOf: false,
+        instanceOf: true,
         earlyReturn: true,
         strictBooleans: false,
         carbon: true,
