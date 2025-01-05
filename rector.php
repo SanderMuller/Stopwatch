@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 
 use Rector\Caching\ValueObject\Storage\FileCacheStorage;
+use Rector\CodingStyle\Rector\Encapsed\EncapsedStringsToSprintfRector;
 use Rector\Config\RectorConfig;
 use Rector\DeadCode\Rector\PropertyProperty\RemoveNullPropertyInitializationRector;
 use Rector\DeadCode\Rector\Stmt\RemoveUnreachableStatementRector;
@@ -22,6 +23,7 @@ return RectorConfig::configure()
     ])
     ->withSkip([
         ClosureToArrowFunctionRector::class,
+        EncapsedStringsToSprintfRector::class,
         RemoveNullPropertyInitializationRector::class,
     ])
     ->withPaths([
@@ -30,22 +32,15 @@ return RectorConfig::configure()
     ->withParallel(300, 15, 15)
     // here we can define, what prepared sets of rules will be applied
     ->withPreparedSets(
-        codeQuality: false,
-        codingStyle: false,
-        privatization: false,
-        naming: false,
-        earlyReturn: false,
-    )
-    ->withPreparedSets(
         deadCode: true,
-        codeQuality: false,
-        codingStyle: false,
+        codeQuality: true,
+        codingStyle: true,
         typeDeclarations: true,
         privatization: true,
-        naming: false,
+        naming: true,
         instanceOf: true,
         earlyReturn: true,
-        strictBooleans: false,
+        strictBooleans: true,
         carbon: true,
         rectorPreset: true,
         phpunitCodeQuality: true,

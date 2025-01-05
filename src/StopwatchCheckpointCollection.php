@@ -30,7 +30,7 @@ final class StopwatchCheckpointCollection extends Collection
     public function render(Stopwatch $stopWatch, int $slowThreshold): string
     {
         return $this->implode(
-            static fn (StopwatchCheckpoint $checkpoint): string => $checkpoint->render($stopWatch, $slowThreshold),
+            static fn (StopwatchCheckpoint $stopwatchCheckpoint): string => $stopwatchCheckpoint->render($stopWatch, $slowThreshold),
         );
     }
 }
