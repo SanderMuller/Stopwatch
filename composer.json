@@ -16,21 +16,25 @@
     "minimum-stability": "stable",
     "require": {
         "php": "^8.2",
-        "illuminate/collections": "^10.0|^11.0",
-        "illuminate/support": "^10.0|^11.0",
+        "illuminate/collections": "^11.0",
+        "illuminate/support": "^11.0",
         "nesbot/carbon": "^2|^3",
-        "symfony/var-dumper": "^6|^7"
+        "symfony/var-dumper": "^7"
     },
     "require-dev": {
-        "laravel/pint": "^1.18",
+        "laravel/pint": "^1.19",
         "nunomaduro/collision": "^8.1",
         "phpstan/extension-installer": "^1.4",
-        "phpstan/phpstan": "^1.12",
-        "phpstan/phpstan-deprecation-rules": "^1.2",
-        "phpstan/phpstan-strict-rules": "^1.6",
-        "rector/rector": "^1.2",
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-deprecation-rules": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "rector/rector": "^2.0",
+        "rector/type-perfect": "^2.0",
         "roave/security-advisories": "dev-latest",
-        "tomasvotruba/type-coverage": "^0.3.1 || ^1.0.0"
+        "spaze/phpstan-disallowed-calls": "^4.0",
+        "symplify/phpstan-extensions": "^12.0",
+        "tomasvotruba/cognitive-complexity": "^1.0",
+        "tomasvotruba/type-coverage": "^2.0"
     },
     "autoload": {
         "psr-4": {
@@ -39,6 +43,8 @@
     },
     "scripts": {
         "phpstan": "vendor/bin/phpstan analyse --memory-limit=2G -v",
+        "phpstan-simplified": "@composer phpstan --error-format symplify",
+        "phpstan-clear-cache": "vendor/bin/phpstan clear-result-cache",
         "format": "vendor/bin/pint",
         "rector": "vendor/bin/rector process"
     },

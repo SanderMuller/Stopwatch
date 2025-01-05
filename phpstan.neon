@@ -1,6 +1,9 @@
 includes:
     - phpstan-baseline.neon
     - phar://phpstan.phar/conf/bleedingEdge.neon
+    - vendor/spaze/phpstan-disallowed-calls/disallowed-dangerous-calls.neon
+    - vendor/spaze/phpstan-disallowed-calls/disallowed-execution-calls.neon
+    - vendor/spaze/phpstan-disallowed-calls/disallowed-insecure-calls.neon
 
 parameters:
     tmpDir: .cache/phpstan
@@ -15,9 +18,19 @@ parameters:
         # also, how many files has declare strict types
         declare: 100
 
+    type_perfect:
+        null_over_false: true
+        no_mixed: true
+        narrow_param: false
+        narrow_return: true
+
+    cognitive_complexity:
+        class: 8
+        function: 5
+
     # The level ranges from 0 to 9 and the latter is the highest level
     # more info at https://phpstan.org/user-guide/rule-levels
-    level: 9
+    level: max
 
     strictRules:
         allRules: true
