@@ -20,6 +20,8 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
 
     private readonly StopwatchCheckpointCollection $checkpoints;
 
+    private int $slowCheckpointThresholdMs = 20;
+
     public function __construct()
     {
         $this->checkpoints = StopwatchCheckpointCollection::empty();
@@ -48,8 +50,8 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
 
     /**
      * @alias
-     * @see self::checkpoint()
      * @param array<array-key, mixed>|null $metadata
+     * @see self::checkpoint()
      */
     public function lap(string $label, ?array $metadata = null): self
     {
@@ -98,7 +100,7 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
         });
     }
 
-    private function totalRunDurationReadable(): string
+    public function totalRunDurationReadable(): string
     {
         $ms = round($this->totalRunDuration()->totalMilliseconds, 1);
 
@@ -168,7 +170,7 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
             </header>
 
             <div style="border-top: 1px solid rgb(243 244 246); border-bottom: 1px solid rgb(243 244 246); max-height: 60vh; overflow-y: auto;">
-                {$this->checkpoints->render($this)}
+                {$this->checkpoints->render($this, $this->slowCheckpointThresholdMs)}
             </div>
 
             <footer style="padding: 10px 15px; display: flex; font-size: 16px;">

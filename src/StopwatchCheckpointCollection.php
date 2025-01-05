@@ -27,10 +27,10 @@ final class StopwatchCheckpointCollection extends Collection
         );
     }
 
-    public function render(Stopwatch $stopWatch): string
+    public function render(Stopwatch $stopWatch, int $slowThreshold): string
     {
         return $this->implode(
-            static fn (StopwatchCheckpoint $checkpoint): string => $checkpoint->render($stopWatch),
+            static fn (StopwatchCheckpoint $checkpoint): string => $checkpoint->render($stopWatch, $slowThreshold),
         );
     }
 }

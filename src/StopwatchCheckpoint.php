@@ -44,19 +44,25 @@ final readonly class StopwatchCheckpoint implements Arrayable
         $this->totalTimeElapsedFormatted = round($this->timeSinceStopwatchStart->totalMilliseconds, 1) . 'ms';
     }
 
-    public function render(Stopwatch $stopWatch): string
+    public function render(Stopwatch $stopWatch, int $slowThreshold): string
     {
-        $factorRunDurationForThisCheckpoint = $this->timeSinceLastCheckpoint->totalMilliseconds / $stopWatch->totalRunDuration()->totalMilliseconds;
+        $runDurationMs = $this->timeSinceLastCheckpoint->totalMilliseconds;
+
+        $factorRunDurationForThisCheckpoint = $runDurationMs / $stopWatch->totalRunDuration()->totalMilliseconds;
         $percentageRunDurationForThisCheckpoint = round($factorRunDurationForThisCheckpoint * 100);
 
-        $bgColor = match(true) {
-            $factorRunDurationForThisCheckpoint > 0.45 || $this->timeSinceLastCheckpoint->totalMilliseconds >= 400 => 'rgba(255, 25, 25, 0.7)',
-            $factorRunDurationForThisCheckpoint > 0.4 || $this->timeSinceLastCheckpoint->totalMilliseconds >= 300 => 'rgba(255, 25, 25, 0.6)',
-            $factorRunDurationForThisCheckpoint > 0.3 || $this->timeSinceLastCheckpoint->totalMilliseconds >= 200 => 'rgba(255, 25, 25, 0.5)',
-            $factorRunDurationForThisCheckpoint > 0.2 || $this->timeSinceLastCheckpoint->totalMilliseconds >= 150 => 'rgba(255, 25, 25, 0.4)',
-            $factorRunDurationForThisCheckpoint > 0.1 || $this->timeSinceLastCheckpoint->totalMilliseconds >= 100 => 'rgba(255, 25, 25, 0.15)',
-            default => 'transparent',
-        };
+        if ($runDurationMs < $slowThreshold) {
+            $bgColor = 'transparent';
+        } else {
+            $bgColor = match (true) {
+                $factorRunDurationForThisCheckpoint > 0.45 || $runDurationMs >= 400 => 'rgba(255, 25, 25, 0.7)',
+                $factorRunDurationForThisCheckpoint > 0.4 || $runDurationMs >= 300 => 'rgba(255, 25, 25, 0.6)',
+                $factorRunDurationForThisCheckpoint > 0.3 || $runDurationMs >= 200 => 'rgba(255, 25, 25, 0.5)',
+                $factorRunDurationForThisCheckpoint > 0.2 || $runDurationMs >= 150 => 'rgba(255, 25, 25, 0.4)',
+                $factorRunDurationForThisCheckpoint > 0.1 || $runDurationMs >= 100 => 'rgba(255, 25, 25, 0.15)',
+                default => 'transparent',
+            };
+        }
 
         return <<<HTML
             <div style="display: flex; justify-content: space-between; border-top: 1px solid rgb(243 244 246); padding: 12px 15px;">
