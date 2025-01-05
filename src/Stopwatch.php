@@ -37,6 +37,10 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
      */
     public function checkpoint(string $label, ?array $metadata = null): self
     {
+        if ($this->endTime !== null) {
+            return $this;
+        }
+
         $this->checkpoints->addCheckpoint($label, $metadata, $this->startTime);
 
         return $this;
