@@ -58,6 +58,13 @@ final class Stopwatch implements Arrayable, Htmlable, Stringable
         return $this->checkpoint($label, $metadata);
     }
 
+    public function slowCheckpointThreshold(int $ms): self
+    {
+        $this->slowCheckpointThresholdMs = $ms;
+
+        return $this;
+    }
+
     public function finish(): self
     {
         return once(function (): self {
