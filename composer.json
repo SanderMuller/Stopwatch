@@ -23,7 +23,7 @@
     },
     "require-dev": {
         "laravel/pint": "^1.19",
-        "nunomaduro/collision": "^8.1",
+        "nunomaduro/collision": "^8.5",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.1",
         "phpstan/phpstan-deprecation-rules": "^2.0",
@@ -32,7 +32,7 @@
         "rector/type-perfect": "^2.0",
         "roave/security-advisories": "dev-latest",
         "spaze/phpstan-disallowed-calls": "^4.0",
-        "symplify/phpstan-extensions": "^12.0",
+        "symplify/phpstan-extensions": "^12.0.1",
         "tomasvotruba/cognitive-complexity": "^1.0",
         "tomasvotruba/type-coverage": "^2.0"
     },
@@ -42,8 +42,8 @@
         }
     },
     "scripts": {
-        "phpstan": "vendor/bin/phpstan analyse --memory-limit=2G -v",
-        "phpstan-simplified": "@composer phpstan --error-format symplify",
+        "phpstan": "vendor/bin/phpstan analyse --memory-limit=2G",
+        "phpstan-simplified": "vendor/bin/phpstan analyse --memory-limit=2G --error-format symplify",
         "phpstan-clear-cache": "vendor/bin/phpstan clear-result-cache",
         "format": "vendor/bin/pint",
         "rector": "vendor/bin/rector process"
