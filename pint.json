@@ -46,6 +46,8 @@
         "backtick_to_shell_exec": true
     },
     "exclude": [
-
+        ".cache",
+        ".github",
+        "vendor"
     ]
 }

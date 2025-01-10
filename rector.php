@@ -15,6 +15,9 @@ use Rector\Privatization\Rector\Property\PrivatizeFinalClassPropertyRector;
  */
 return RectorConfig::configure()
     ->withCache('./.cache/rector', FileCacheStorage::class)
+    ->withPaths([
+        __DIR__ . '/src',
+    ])
     ->withRules([
         ExplicitNullableParamTypeRector::class,
         ParenthesizeNestedTernaryRector::class,
@@ -25,9 +28,6 @@ return RectorConfig::configure()
         ClosureToArrowFunctionRector::class,
         EncapsedStringsToSprintfRector::class,
         RemoveNullPropertyInitializationRector::class,
-    ])
-    ->withPaths([
-        __DIR__ . '/src',
     ])
     ->withParallel(300, 15, 15)
     // here we can define, what prepared sets of rules will be applied

@@ -7,8 +7,6 @@ composer.lock
 _ide_helper_models.php
 _ide_helper.php
 _ide_macros.php
-nbproject/
-nbproject/private/
 .idea/*
 !/.idea/codeStyles
 
@@ -25,6 +23,5 @@ yarn-error.log
 .env.*
 !.env.example
 !.env.ci
-.cache
 logs
 .phpactor.json

@@ -1,7 +1,12 @@
 {
     "name": "sandermuller/stopwatch",
     "description": "Stopwatch to measure execution times (profile code) for Laravel and PHP projects",
-    "keywords": ["PHP", "Laravel", "Stopwatch", "profiling"],
+    "keywords": [
+        "PHP",
+        "Laravel",
+        "Stopwatch",
+        "profiling"
+    ],
     "homepage": "https://github.com/SanderMuller/Stopwatch",
     "license": "MIT",
     "type": "library",
