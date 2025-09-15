@@ -20,31 +20,36 @@
     "prefer-stable": true,
     "minimum-stability": "stable",
     "require": {
-        "php": "^8.2",
+        "php": "^8.3",
         "illuminate/collections": "^11.0|^12.0",
         "illuminate/support": "^11.0|^12.0",
-        "nesbot/carbon": "^2|^3",
-        "symfony/var-dumper": "^7"
+        "nesbot/carbon": "^2|^3.10.3",
+        "spatie/laravel-package-tools": "^1.92.7",
+        "symfony/var-dumper": "^7.3.3"
     },
     "require-dev": {
-        "laravel/pint": "^1.19",
-        "nunomaduro/collision": "^8.5",
-        "phpstan/extension-installer": "^1.4",
-        "phpstan/phpstan": "^2.1",
-        "phpstan/phpstan-deprecation-rules": "^2.0",
-        "phpstan/phpstan-strict-rules": "^2.0",
-        "rector/rector": "^2.0",
-        "rector/type-perfect": "^2.0",
+        "laravel/pint": "^1.24",
+        "nunomaduro/collision": "^8.8.2",
+        "orchestra/testbench": "^9.6|^10.6",
+        "phpstan/extension-installer": "^1.4.3",
+        "phpstan/phpstan": "^2.1.25",
+        "phpstan/phpstan-deprecation-rules": "^2.0.3",
+        "phpstan/phpstan-strict-rules": "^2.0.6",
+        "rector/rector": "^2.1.7",
+        "rector/type-perfect": "^2.1",
         "roave/security-advisories": "dev-latest",
-        "spaze/phpstan-disallowed-calls": "^4.0",
+        "spaze/phpstan-disallowed-calls": "^4.6",
         "symplify/phpstan-extensions": "^12.0.1",
         "tomasvotruba/cognitive-complexity": "^1.0",
-        "tomasvotruba/type-coverage": "^2.0"
+        "tomasvotruba/type-coverage": "^2.0.2"
     },
     "autoload": {
         "psr-4": {
             "SanderMuller\\Stopwatch\\": "src"
-        }
+        },
+        "files": [
+            "src/helpers/stopwatch.php"
+        ]
     },
     "scripts": {
         "phpstan": "vendor/bin/phpstan analyse --memory-limit=2G",
@@ -55,11 +60,18 @@
     },
     "config": {
         "platform": {
-            "php": "8.2"
+            "php": "8.3"
         },
         "sort-packages": true,
         "allow-plugins": {
             "phpstan/extension-installer": true
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "SanderMuller\\Stopwatch\\ServiceProvider"
+            ]
         }
     }
 }

@@ -18,30 +18,31 @@ final readonly class StopwatchCheckpoint implements Arrayable
 
     public string $totalTimeElapsedFormatted;
 
-    public CarbonInterval $timeSinceLastCheckpoint;
-
     public string $timeSinceLastCheckpointFormatted;
 
     /**
      * @param array<array-key, mixed>|null $metadata
      */
     public function __construct(
-        public string   $label,
-        public ?array   $metadata,
-        ?self           $previousCheckpoint,
-        CarbonImmutable $stopwatchStartTime,
+        public string         $label,
+        public ?array         $metadata,
+        public CarbonInterval $timeSinceLastCheckpoint,
+        CarbonImmutable       $stopwatchStartTime,
     ) {
         $this->time = CarbonImmutable::now();
 
         $this->timeSinceStopwatchStart = $stopwatchStartTime->diffAsCarbonInterval($this->time, absolute: true)->cascade();
 
-        $this->timeSinceLastCheckpoint = $previousCheckpoint instanceof StopwatchCheckpoint
-            ? $previousCheckpoint->time->diffAsCarbonInterval($this->time, absolute: true)->cascade()
-            : $this->timeSinceStopwatchStart;
-
         $this->timeSinceLastCheckpointFormatted = round($this->timeSinceLastCheckpoint->totalMilliseconds, 1) . 'ms';
 
-        $this->totalTimeElapsedFormatted = round($this->timeSinceStopwatchStart->totalMilliseconds, 1) . 'ms';
+        $this->totalTimeElapsedFormatted = round($this->timeSinceStopwatchStart()->totalMilliseconds, 1) . 'ms';
+    }
+
+    private function timeSinceStopwatchStart(): CarbonInterval
+    {
+        return once(function (): CarbonInterval {
+            return $this->time->diffAsCarbonInterval($this->time, absolute: true)->cascade();
+        });
     }
 
     public function render(Stopwatch $stopWatch, int $slowThreshold): string
@@ -128,9 +129,9 @@ final readonly class StopwatchCheckpoint implements Arrayable
             'label' => $this->label,
             'time' => $this->time->format('H:i:s.u'),
             'metadata' => $this->metadata,
-            'totalTimeElapsedMs' => (int) $this->timeSinceStopwatchStart->totalMilliseconds,
+            'totalTimeElapsedMs' => (int) round($this->timeSinceStopwatchStart()->totalMilliseconds),
             'totalTimeElapsedFormatted' => $this->totalTimeElapsedFormatted,
-            'timeSinceLastCheckpointMs' => (int) $this->timeSinceLastCheckpoint->totalMilliseconds,
+            'timeSinceLastCheckpointMs' => (int) round($this->timeSinceLastCheckpoint->totalMilliseconds),
             'timeSinceLastCheckpointFormatted' => $this->timeSinceLastCheckpointFormatted,
         ];
     }

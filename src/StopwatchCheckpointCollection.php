@@ -3,6 +3,7 @@
 namespace SanderMuller\Stopwatch;
 
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterval;
 use Illuminate\Support\Collection;
 
 /**
@@ -15,13 +16,13 @@ final class StopwatchCheckpointCollection extends Collection
     /**
      * @param array<array-key, mixed>|null $metadata
      */
-    public function addCheckpoint(string $label, ?array $metadata, CarbonImmutable $stopwatchStartTime): self
+    public function addCheckpoint(string $label, ?array $metadata, CarbonImmutable $stopwatchStartTime, CarbonInterval $timeSinceLastCheckpoint): self
     {
         return $this->add(
             new StopwatchCheckpoint(
                 label: $label,
                 metadata: $metadata,
-                previousCheckpoint: $this->last(),
+                timeSinceLastCheckpoint: $timeSinceLastCheckpoint,
                 stopwatchStartTime: $stopwatchStartTime,
             ),
         );
@@ -32,5 +33,10 @@ final class StopwatchCheckpointCollection extends Collection
         return $this->implode(
             static fn (StopwatchCheckpoint $stopwatchCheckpoint): string => $stopwatchCheckpoint->render($stopWatch, $slowThreshold),
         );
+    }
+
+    public function lastCheckpoint(): ?StopwatchCheckpoint
+    {
+        return $this->last();
     }
 }

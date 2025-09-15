@@ -15,6 +15,7 @@ parameters:
         return: 100
         param: 100
         property: 100
+        constant: 100
         # also, how many files has declare strict types
         declare: 100
 

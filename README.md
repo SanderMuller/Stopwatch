@@ -15,35 +15,35 @@ composer require sandermuller/stopwatch
 ### Start the stopwatch
 
 ```php
-use SanderMuller\Stopwatch\Stopwatch;
-
-$stopwatch = Stopwatch::start();
+stopwatch()->start();
 ```
 
 ### Add a lap/checkpoint
 
 ```php
-use SanderMuller\Stopwatch\Stopwatch;
+stopwatch()->start();
 
-$stopwatch = Stopwatch::start();
-
-$stopwatch->checkpoint('First checkpoint');
+stopwatch()->checkpoint('First checkpoint');
 // Or
-$stopwatch->lap('Second checkpoint');
+stopwatch()->lap('Second checkpoint');
+```
+
+### Send the timing directly to your log file
+
+```php
+stopwatch()->start();
+
+stopwatch()->log('Second checkpoint');
 ```
 
 ### Display the total run duration
 
 ```php
-use SanderMuller\Stopwatch\Stopwatch;
-
-$stopwatch = Stopwatch::start();
+stopwatch()->start();
 
 // Do something
 
-echo $stopwatch->toString();
-// or
-echo (string) $stopwatch;
+echo stopwatch()->toString();
 // Echoes something like: 116ms
 ```
 
@@ -54,21 +54,16 @@ Render a neat HTML output showing the total execution time, each checkpoint and 
 The checkpoints that took up most of the time will be highlighted.
 
 ```php
-use SanderMuller\Stopwatch\Stopwatch;
-
-$stopwatch = Stopwatch::start();
+stopwatch()->start();
 
 // Do something
-
-$stopwatch->checkpoint('First checkpoint');
+stopwatch()->checkpoint('First checkpoint');
 
 // Do something more
+stopwatch()->checkpoint('Second checkpoint');
 
-$stopwatch->checkpoint('Second checkpoint');
-
-echo $stopwatch->toHtml();
-// Or in Laravel
-{{ $stopwatch }}
+// Render the output
+{{ stopwatch()->render() }}
 ```
 
 ![rendered-stopwatch.png](rendered-stopwatch.png)
@@ -78,16 +73,16 @@ echo $stopwatch->toHtml();
 You can manually stop the stopwatch, but it will also stop automatically when the Stopwatch output is used (e.g. when you echo the Stopwatch object or call `->totalRunDuration()`).
 
 ```php
-use SanderMuller\Stopwatch\Stopwatch;
-
-$stopwatch = Stopwatch::start();
+stopwatch()->start();
 
 // Do something
+stopwatch()->checkpoint('First checkpoint');
 
-$stopwatch->stop();
+// Stop the stopwatch
+stopwatch()->stop();
 
-// Do something you don't want to measure
+// Do something else you don't want to measure
 
 // Finally render the output
-echo $stopwatch->toHtml();
+{{ stopwatch()->render() }}
 ```

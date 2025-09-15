@@ -1,0 +1,7 @@
+*
+/phpstan
+/phpunit
+/pint
+/rector
+/rectorContainer
+!.gitignore
