@@ -6,4 +6,4 @@ Stopwatch now uses PHP 8.3 or newer to run.
 
 ## Breaking changes
 
-`Stopwatch::start()` is replaced by `Stopwatch::new()`, but it is recommended to migrate to the helper function, e.g. `stopwatch()->start()`.
+`Stopwatch::start()` is replaced by `stopwatch()->start()`, or if you prefer the non helper method, you can use `Stopwatch::new()->start()`.
