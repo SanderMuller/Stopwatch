@@ -1,4 +1,4 @@
-# Upgrading from Rector 0.2.x to 0.3.x
+# Upgrading from Stopwatch 0.2.x to 0.3.x
 
 ## PHP version requirements
 
