@@ -51,6 +51,11 @@
             "src/helpers/stopwatch.php"
         ]
     },
+    "autoload-dev": {
+        "psr-4": {
+            "SanderMuller\\Stopwatch\\Tests\\": "tests/"
+        }
+    },
     "scripts": {
         "phpstan": "vendor/bin/phpstan analyse --memory-limit=2G",
         "phpstan-simplified": "vendor/bin/phpstan analyse --memory-limit=2G --error-format symplify",
