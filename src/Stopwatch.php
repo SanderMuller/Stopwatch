@@ -177,15 +177,9 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function totalRunDuration(): CarbonInterval
     {
-        return once(function (): CarbonInterval {
-            $this->finish();
+        $endTime = $this->endTime ?? CarbonImmutable::now();
 
-            if (! $this->endTime instanceof CarbonImmutable) {
-                throw new Exception('Stopwatch has not been finished yet.');
-            }
-
-            return $this->startTime->diffAsCarbonInterval($this->endTime, absolute: true)->cascade();
-        });
+        return $this->startTime->diffAsCarbonInterval($endTime, absolute: true)->cascade();
     }
 
     public function totalRunDurationReadable(): string
