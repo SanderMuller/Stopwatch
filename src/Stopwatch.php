@@ -26,6 +26,8 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     private int $slowCheckpointThresholdMs = 50;
 
+    private ?string $logLevel = null;
+
     public static function new(): self
     {
         return new self();
@@ -97,11 +99,20 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     /**
      * @param array<array-key, mixed>|null $metadata
      */
-    public function log(string $label, string $level = 'debug', ?array $metadata = null): self
+    public function log(string $label, ?string $level = null, ?array $metadata = null): self
     {
+        $level ??= $this->logLevel ?? 'debug';
+
         $this->checkpoint($label, $metadata);
 
         logger()->log($level, $this->lastCheckpointFormatted(), $metadata ?? []);
+
+        return $this;
+    }
+
+    public function setLogLevel(?string $level): self
+    {
+        $this->logLevel = $level;
 
         return $this;
     }
