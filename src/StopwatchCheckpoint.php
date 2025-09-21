@@ -35,14 +35,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
 
         $this->timeSinceLastCheckpointFormatted = round($this->timeSinceLastCheckpoint->totalMilliseconds, 1) . 'ms';
 
-        $this->totalTimeElapsedFormatted = round($this->timeSinceStopwatchStart()->totalMilliseconds, 1) . 'ms';
-    }
-
-    private function timeSinceStopwatchStart(): CarbonInterval
-    {
-        return once(function (): CarbonInterval {
-            return $this->time->diffAsCarbonInterval($this->time, absolute: true)->cascade();
-        });
+        $this->totalTimeElapsedFormatted = round($this->timeSinceStopwatchStart->totalMilliseconds, 1) . 'ms';
     }
 
     public function render(Stopwatch $stopWatch, int $slowThreshold): string
@@ -129,7 +122,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
             'label' => $this->label,
             'time' => $this->time->format('H:i:s.u'),
             'metadata' => $this->metadata,
-            'totalTimeElapsedMs' => (int) round($this->timeSinceStopwatchStart()->totalMilliseconds),
+            'totalTimeElapsedMs' => (int) round($this->timeSinceStopwatchStart->totalMilliseconds),
             'totalTimeElapsedFormatted' => $this->totalTimeElapsedFormatted,
             'timeSinceLastCheckpointMs' => (int) round($this->timeSinceLastCheckpoint->totalMilliseconds),
             'timeSinceLastCheckpointFormatted' => $this->timeSinceLastCheckpointFormatted,
