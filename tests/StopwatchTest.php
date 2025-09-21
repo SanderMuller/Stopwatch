@@ -28,6 +28,25 @@ final class StopwatchTest extends TestCase
         self::assertCount(3, $array['checkpoints']);
     }
 
+    public function test_call_checkpoint_before_start_and_to_string(): void
+    {
+        usleep(5000); // 5ms
+        stopwatch()->checkpoint('First');
+        usleep(2000); // 2ms
+        stopwatch()->checkpoint('Second');
+
+        $str = stopwatch()->toString();
+        self::assertIsString($str);
+        self::assertStringEndsWith('ms', $str);
+
+        $array = stopwatch()->toArray();
+        self::assertArrayHasKey('startTime', $array);
+        self::assertArrayHasKey('endTime', $array);
+        self::assertArrayHasKey('checkpoints', $array);
+        self::assertIsArray($array['checkpoints']);
+        self::assertCount(3, $array['checkpoints']);
+    }
+
     public function test_to_array_contains_flat_checkpoints_and_grouped_groups(): void
     {
         stopwatch()->start();
