@@ -28,6 +28,7 @@
         "symfony/var-dumper": "^7.3.3"
     },
     "require-dev": {
+        "fakerphp/faker": "^1.24",
         "laravel/pint": "^1.24",
         "nunomaduro/collision": "^8.8.2",
         "orchestra/testbench": "^9.6|^10.6",
