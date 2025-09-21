@@ -16,7 +16,7 @@ use Stringable;
  */
 final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 {
-    private CarbonImmutable $startTime;
+    private ?CarbonImmutable $startTime = null;
 
     private ?CarbonImmutable $endTime = null;
 
@@ -56,13 +56,31 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         return $this;
     }
 
+    public function started(): bool
+    {
+        return $this->startTime instanceof CarbonImmutable;
+    }
+
+    public function ended(): bool
+    {
+        return $this->endTime instanceof CarbonImmutable;
+    }
+
     /**
      * @param array<array-key, mixed>|null $metadata
      */
     public function checkpoint(string $label, ?array $metadata = null): self
     {
-        if ($this->endTime instanceof CarbonImmutable) {
+        if ($this->ended()) {
             return $this;
+        }
+
+        if (! $this->started()) {
+            $this->start();
+        }
+
+        if (! $this->startTime instanceof CarbonImmutable) {
+            throw new Exception('Stopwatch has not been started properly.');
         }
 
         $lastCheckpoint = $this->checkpoints->lastCheckpoint();
@@ -177,6 +195,14 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function totalRunDuration(): CarbonInterval
     {
+        if (! $this->started()) {
+            return CarbonInterval::milliseconds(0);
+        }
+
+        if (! $this->startTime instanceof CarbonImmutable) {
+            throw new Exception('Stopwatch has not been started properly.');
+        }
+
         $endTime = $this->endTime ?? CarbonImmutable::now();
 
         return $this->startTime->diffAsCarbonInterval($endTime, absolute: true)->cascade();
@@ -249,7 +275,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
                 </div>
 
                 <p style="margin-bottom: 0; position: relative;">
-                    {$this->startTime->format('H:i:s.v')} - {$this->endTime?->format('H:i:s.v')}
+                    {$this->startTime?->format('H:i:s.v')} - {$this->endTime?->format('H:i:s.v')}
                 </p>
             </header>
 
@@ -280,7 +306,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     /**
      * @return array{
-     *     startTime: non-falsy-string,
+     *     startTime: non-falsy-string|null,
      *     endTime: non-falsy-string|null,
      *     checkpoints: array<array-key, mixed>,
      *     totalRunDuration: string,
@@ -292,7 +318,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->finish();
 
         return [
-            'startTime' => $this->startTime->format('H:i:s.u'),
+            'startTime' => $this->startTime?->format('H:i:s.u'),
             'endTime' => $this->endTime?->format('H:i:s.u'),
             'checkpoints' => $this->checkpoints->toArray(),
             'totalRunDuration' => $this->totalRunDurationReadable(),
