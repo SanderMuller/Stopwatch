@@ -35,7 +35,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
 
         $this->timeSinceLastCheckpointFormatted = round($this->timeSinceLastCheckpoint->totalMilliseconds, 1) . 'ms';
 
-        $this->totalTimeElapsedFormatted = round($this->timeSinceStopwatchStart->totalMilliseconds, 1) . 'ms';
+        $this->totalTimeElapsedFormatted = round($this->timeSinceStopwatchStart->totalMilliseconds) . 'ms';
     }
 
     public function render(Stopwatch $stopWatch, int $slowThreshold): string
