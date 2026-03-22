@@ -16,14 +16,30 @@ final class StopwatchCheckpointCollection extends Collection
     /**
      * @param array<array-key, mixed>|null $metadata
      */
-    public function addCheckpoint(string $label, ?array $metadata, CarbonImmutable $stopwatchStartTime, CarbonInterval $timeSinceLastCheckpoint): self
-    {
+    public function addCheckpoint(
+        string          $label,
+        ?array          $metadata,
+        CarbonImmutable $stopwatchStartTime,
+        CarbonInterval  $timeSinceLastCheckpoint,
+        CarbonImmutable $time,
+        ?int            $queryCount = null,
+        ?float          $queryTimeMs = null,
+        ?string         $memoryUsage = null,
+        ?string         $memoryDelta = null,
+        ?string         $memoryPeak = null,
+    ): self {
         return $this->add(
             new StopwatchCheckpoint(
                 label: $label,
                 metadata: $metadata,
                 timeSinceLastCheckpoint: $timeSinceLastCheckpoint,
                 stopwatchStartTime: $stopwatchStartTime,
+                time: $time,
+                queryCount: $queryCount,
+                queryTimeMs: $queryTimeMs,
+                memoryUsage: $memoryUsage,
+                memoryDelta: $memoryDelta,
+                memoryPeak: $memoryPeak,
             ),
         );
     }

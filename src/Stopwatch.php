@@ -8,11 +8,14 @@ use Exception;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\Support\Jsonable;
+use Illuminate\Database\DatabaseManager;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\HtmlString;
 use Stringable;
 
 /**
  * @implements Arrayable<string, mixed>
+ * @phpstan-ignore complexity.classLike
  */
 final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 {
@@ -30,9 +33,45 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     private ?string $logLevel = null;
 
+    private bool $trackingQueries = false;
+
+    private int $queryCount = 0;
+
+    private float $queryDurationMs = 0;
+
+    private bool $trackingMemory = false;
+
+    private int $lastMemoryUsage = 0;
+
+    private bool $enabled = true;
+
+    private function __construct()
+    {
+        $this->checkpoints = StopwatchCheckpointCollection::empty();
+    }
+
     public static function new(): self
     {
         return new self();
+    }
+
+    public function enable(): self
+    {
+        $this->enabled = true;
+
+        return $this;
+    }
+
+    public function disable(): self
+    {
+        $this->enabled = false;
+
+        return $this;
+    }
+
+    public function enabled(): bool
+    {
+        return $this->enabled;
     }
 
     public function start(): self
@@ -47,6 +86,10 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function reset(): self
     {
+        if (! $this->enabled) {
+            return $this;
+        }
+
         $this->checkpoints = StopwatchCheckpointCollection::empty();
 
         $this->startTime = CarbonImmutable::now();
@@ -54,6 +97,13 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->endTime = null;
 
         $this->timeSinceLastCheckpoint = null;
+
+        $this->queryCount = 0;
+        $this->queryDurationMs = 0;
+
+        if ($this->trackingMemory) {
+            $this->lastMemoryUsage = memory_get_usage();
+        }
 
         return $this;
     }
@@ -73,7 +123,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
      */
     public function checkpoint(string $label, ?array $metadata = null, ?StopwatchOutput $output = null, ?string $logLevel = null): self
     {
-        if ($this->ended()) {
+        if (! $this->enabled || $this->ended()) {
             return $this;
         }
 
@@ -85,24 +135,35 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             throw new Exception('Stopwatch has not been started properly.');
         }
 
+        $now = CarbonImmutable::now();
         $lastCheckpoint = $this->checkpoints->lastCheckpoint();
+        $previousTime = $lastCheckpoint instanceof StopwatchCheckpoint ? $lastCheckpoint->time : $this->startTime;
 
-        $this->timeSinceLastCheckpoint = $lastCheckpoint instanceof StopwatchCheckpoint
-            ? now()->diffAsCarbonInterval($lastCheckpoint->time, absolute: true)->cascade()
-            : now()->diffAsCarbonInterval($this->startTime, absolute: true)->cascade();
+        $this->timeSinceLastCheckpoint = $previousTime->diffAsCarbonInterval($now, absolute: true)->cascade();
+
+        $queryMetrics = $this->trackingQueries ? $this->collectQueryMetrics() : null;
+        $memoryMetrics = $this->trackingMemory ? $this->collectMemoryMetrics() : null;
 
         $this->checkpoints->addCheckpoint(
             label: $label,
             metadata: $metadata,
             stopwatchStartTime: $this->startTime,
             timeSinceLastCheckpoint: $this->timeSinceLastCheckpoint,
+            time: $now,
+            queryCount: $queryMetrics['queries'] ?? null,
+            queryTimeMs: $queryMetrics['query_time_ms'] ?? null,
+            memoryUsage: $memoryMetrics['memory_usage'] ?? null,
+            memoryDelta: $memoryMetrics['memory_delta'] ?? null,
+            memoryPeak: $memoryMetrics['memory_peak'] ?? null,
         );
 
-        $this->emitCheckpoint(
-            metadata: $metadata,
-            output: $output,
-            logLevel: $logLevel,
-        );
+        if (($output ?? $this->output) !== StopwatchOutput::Silent) {
+            $this->emitCheckpoint(
+                metadata: $metadata,
+                output: $output,
+                logLevel: $logLevel,
+            );
+        }
 
         return $this;
     }
@@ -158,6 +219,87 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         return $this;
     }
 
+    public function withQueryTracking(): self
+    {
+        if (! $this->enabled || $this->trackingQueries) {
+            return $this;
+        }
+
+        if (! class_exists(QueryExecuted::class) || ! app()->bound(DatabaseManager::class)) {
+            throw new Exception('Query tracking requires illuminate/database. Install it via: composer require illuminate/database');
+        }
+
+        $this->trackingQueries = true;
+        $this->queryCount = 0;
+        $this->queryDurationMs = 0;
+
+        app(DatabaseManager::class)->connection()->listen(function (QueryExecuted $query): void {
+            if (! $this->trackingQueries || $this->ended()) {
+                return;
+            }
+
+            $this->queryCount++;
+            $this->queryDurationMs += $query->time;
+        });
+
+        return $this;
+    }
+
+    public function withMemoryTracking(): self
+    {
+        if (! $this->enabled) {
+            return $this;
+        }
+
+        $this->trackingMemory = true;
+        $this->lastMemoryUsage = memory_get_usage();
+
+        return $this;
+    }
+
+    /**
+     * @return array{memory_usage: string, memory_delta: string, memory_peak: string}
+     */
+    private function collectMemoryMetrics(): array
+    {
+        $currentMemory = memory_get_usage();
+        $delta = $currentMemory - $this->lastMemoryUsage;
+        $this->lastMemoryUsage = $currentMemory;
+
+        return [
+            'memory_usage' => $this->formatBytes($currentMemory),
+            'memory_delta' => ($delta >= 0 ? '+' : '') . $this->formatBytes($delta),
+            'memory_peak' => $this->formatBytes(memory_get_peak_usage()),
+        ];
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        $absBytes = abs($bytes);
+
+        return match (true) {
+            $absBytes >= 1048576 => round($bytes / 1048576, 1) . 'MB',
+            $absBytes >= 1024 => round($bytes / 1024, 1) . 'KB',
+            default => $bytes . 'B',
+        };
+    }
+
+    /**
+     * @return array{queries: int, query_time_ms: float}
+     */
+    private function collectQueryMetrics(): array
+    {
+        $metrics = [
+            'queries' => $this->queryCount,
+            'query_time_ms' => round($this->queryDurationMs, 1),
+        ];
+
+        $this->queryCount = 0;
+        $this->queryDurationMs = 0;
+
+        return $metrics;
+    }
+
     /**
      * @param array<array-key, mixed>|null $metadata
      */
@@ -199,6 +341,10 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
      */
     public function measure(string $label, callable $callback, ?array $metadata = null, ?StopwatchOutput $output = null, ?string $logLevel = null): mixed
     {
+        if (! $this->enabled) {
+            return $callback();
+        }
+
         if (! $this->started()) {
             $this->start();
         }
@@ -217,7 +363,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function finish(): self
     {
-        if ($this->endTime instanceof CarbonImmutable) {
+        if (! $this->enabled || $this->endTime instanceof CarbonImmutable) {
             return $this;
         }
 
@@ -442,5 +588,25 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     public function toJson(mixed $options = 0): string
     {
         return json_encode($this->toArray(), JSON_THROW_ON_ERROR | $options);
+    }
+
+    public function toServerTiming(): string
+    {
+        $this->finish();
+
+        $metrics = [];
+
+        foreach ($this->checkpoints as $checkpoint) {
+            $name = preg_replace('/[^a-zA-Z0-9_-]/', '-', $checkpoint->label) ?? $checkpoint->label;
+            $dur = round($checkpoint->timeSinceLastCheckpoint->totalMilliseconds, 1);
+
+            $desc = addcslashes($checkpoint->label, '"\\');
+            $metrics[] = "{$name};dur={$dur};desc=\"{$desc}\"";
+        }
+
+        $totalMs = round($this->totalRunDuration()->totalMilliseconds, 1);
+        $metrics[] = "total;dur={$totalMs};desc=\"Total\"";
+
+        return implode(', ', $metrics);
     }
 }

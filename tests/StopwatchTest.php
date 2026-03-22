@@ -3,8 +3,11 @@
 namespace SanderMuller\Stopwatch\Tests;
 
 use Carbon\CarbonInterval;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 use SanderMuller\Stopwatch\Stopwatch;
+use SanderMuller\Stopwatch\StopwatchMiddleware;
 use SanderMuller\Stopwatch\StopwatchOutput;
 
 final class StopwatchTest extends TestCase
@@ -225,5 +228,224 @@ final class StopwatchTest extends TestCase
 
         $returnValue = stopwatch()->toLog('Profile:');
         self::assertInstanceOf(Stopwatch::class, $returnValue);
+    }
+
+    public function test_with_query_tracking_captures_query_count_and_duration(): void
+    {
+        stopwatch()->withQueryTracking()->start();
+
+        DB::select('SELECT 1');
+        DB::select('SELECT 1');
+        stopwatch()->checkpoint('After queries');
+
+        DB::select('SELECT 1');
+        stopwatch()->checkpoint('After one more');
+
+        $data = stopwatch()->toArray();
+
+        self::assertSame(2, $data['checkpoints'][0]['queryCount']);
+        self::assertIsFloat($data['checkpoints'][0]['queryTimeMs']);
+        self::assertSame(1, $data['checkpoints'][1]['queryCount']);
+    }
+
+    public function test_with_query_tracking_resets_counters_between_checkpoints(): void
+    {
+        stopwatch()->withQueryTracking()->start();
+
+        DB::select('SELECT 1');
+        DB::select('SELECT 1');
+        DB::select('SELECT 1');
+        stopwatch()->checkpoint('Three queries');
+
+        stopwatch()->checkpoint('No queries');
+
+        $data = stopwatch()->toArray();
+
+        self::assertSame(3, $data['checkpoints'][0]['queryCount']);
+        self::assertSame(0, $data['checkpoints'][1]['queryCount']);
+    }
+
+    public function test_without_query_tracking_no_query_data(): void
+    {
+        stopwatch()->start();
+
+        DB::select('SELECT 1');
+        stopwatch()->checkpoint('No tracking');
+
+        $data = stopwatch()->toArray();
+
+        self::assertNull($data['checkpoints'][0]['queryCount']);
+    }
+
+    public function test_with_memory_tracking_captures_memory_metrics(): void
+    {
+        stopwatch()->withMemoryTracking()->start();
+
+        $dummy = str_repeat('x', 1024);
+        stopwatch()->checkpoint('After alloc');
+
+        $data = stopwatch()->toArray();
+
+        self::assertNotNull($data['checkpoints'][0]['memoryUsage']);
+        self::assertNotNull($data['checkpoints'][0]['memoryDelta']);
+        self::assertNotNull($data['checkpoints'][0]['memoryPeak']);
+
+        unset($dummy);
+    }
+
+    public function test_without_memory_tracking_no_memory_data(): void
+    {
+        stopwatch()->start();
+
+        stopwatch()->checkpoint('No tracking');
+
+        $data = stopwatch()->toArray();
+
+        self::assertNull($data['checkpoints'][0]['memoryUsage']);
+    }
+
+    public function test_disabled_stopwatch_skips_checkpoints(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $stopwatch->disable();
+
+        self::assertFalse($stopwatch->enabled());
+
+        $stopwatch->start();
+        $stopwatch->checkpoint('Should be ignored');
+        $stopwatch->finish();
+
+        self::assertFalse($stopwatch->started());
+        self::assertFalse($stopwatch->ended());
+        self::assertCount(0, $stopwatch->toArray()['checkpoints']);
+    }
+
+    public function test_disabled_measure_still_executes_callback(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $stopwatch->disable();
+
+        $result = $stopwatch->measure('Ignored', static fn (): int => 42);
+
+        self::assertSame(42, $result);
+        self::assertCount(0, $stopwatch->toArray()['checkpoints']);
+    }
+
+    public function test_enable_after_disable_restores_functionality(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $stopwatch->disable();
+        $stopwatch->start();
+        $stopwatch->checkpoint('Ignored');
+
+        $stopwatch->enable();
+        $stopwatch->start();
+        $stopwatch->checkpoint('Visible');
+
+        self::assertCount(1, $stopwatch->toArray()['checkpoints']);
+        self::assertSame('Visible', $stopwatch->toArray()['checkpoints'][0]['label']);
+    }
+
+    public function test_disabled_stopwatch_skips_query_tracking(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $stopwatch->disable();
+
+        $result = $stopwatch->withQueryTracking();
+
+        self::assertInstanceOf(Stopwatch::class, $result);
+    }
+
+    public function test_disabled_stopwatch_skips_memory_tracking(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $stopwatch->disable();
+
+        $result = $stopwatch->withMemoryTracking();
+
+        self::assertInstanceOf(Stopwatch::class, $result);
+    }
+
+    public function test_to_server_timing_with_checkpoints(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $stopwatch->start();
+        $stopwatch->checkpoint('Validation');
+        $stopwatch->checkpoint('DB queries');
+
+        $header = $stopwatch->toServerTiming();
+
+        self::assertStringContainsString('Validation;dur=', $header);
+        self::assertStringContainsString('desc="Validation"', $header);
+        self::assertStringContainsString('DB-queries;dur=', $header);
+        self::assertStringContainsString('desc="DB queries"', $header);
+        self::assertStringContainsString('total;dur=', $header);
+        self::assertStringContainsString('desc="Total"', $header);
+    }
+
+    public function test_to_server_timing_without_checkpoints(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $stopwatch->start();
+
+        $header = $stopwatch->toServerTiming();
+
+        self::assertStringStartsWith('total;dur=', $header);
+        self::assertStringNotContainsString(', total', $header);
+    }
+
+    public function test_to_server_timing_escapes_special_characters_in_label(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $stopwatch->start();
+        $stopwatch->checkpoint('Label with "quotes" and \\backslash');
+
+        $header = $stopwatch->toServerTiming();
+
+        self::assertStringContainsString('desc="Label with \\"quotes\\" and \\\\backslash"', $header);
+    }
+
+    public function test_middleware_sets_server_timing_header(): void
+    {
+        $this->app->make('router')
+            ->middleware(StopwatchMiddleware::class)
+            ->get('/test-timing', static function (): string {
+                stopwatch()->checkpoint('Controller');
+
+                return 'ok';
+            });
+
+        $response = $this->get('/test-timing');
+
+        $response->assertOk();
+        $header = $response->headers->get('Server-Timing');
+        self::assertNotNull($header);
+        self::assertStringContainsString('Controller;dur=', $header);
+        self::assertStringContainsString('total;dur=', $header);
+    }
+
+    public function test_middleware_skips_header_when_disabled(): void
+    {
+        $this->app->make(Stopwatch::class)->disable();
+
+        $this->app->make('router')
+            ->middleware(StopwatchMiddleware::class)
+            ->get('/test-disabled', static fn (): string => 'ok');
+
+        $response = $this->get('/test-disabled');
+
+        $response->assertOk();
+        self::assertNull($response->headers->get('Server-Timing'));
+    }
+
+    public function test_blade_directive_renders_stopwatch(): void
+    {
+        stopwatch()->start();
+        stopwatch()->checkpoint('Blade test');
+
+        $rendered = Blade::render('@stopwatch');
+
+        self::assertStringContainsString('Total', $rendered);
+        self::assertStringContainsString('Blade test', $rendered);
     }
 }

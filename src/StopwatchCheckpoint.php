@@ -12,8 +12,6 @@ use Stringable;
  */
 final readonly class StopwatchCheckpoint implements Arrayable
 {
-    public CarbonImmutable $time;
-
     public CarbonInterval $timeSinceStopwatchStart;
 
     public string $totalTimeElapsedFormatted;
@@ -24,13 +22,17 @@ final readonly class StopwatchCheckpoint implements Arrayable
      * @param array<array-key, mixed>|null $metadata
      */
     public function __construct(
-        public string         $label,
-        public ?array         $metadata,
-        public CarbonInterval $timeSinceLastCheckpoint,
-        CarbonImmutable       $stopwatchStartTime,
+        public string          $label,
+        public ?array          $metadata,
+        public CarbonInterval  $timeSinceLastCheckpoint,
+        CarbonImmutable        $stopwatchStartTime,
+        public CarbonImmutable $time,
+        public ?int            $queryCount = null,
+        public ?float          $queryTimeMs = null,
+        public ?string         $memoryUsage = null,
+        public ?string         $memoryDelta = null,
+        public ?string         $memoryPeak = null,
     ) {
-        $this->time = CarbonImmutable::now();
-
         $this->timeSinceStopwatchStart = $stopwatchStartTime->diffAsCarbonInterval($this->time, absolute: true)->cascade();
 
         $this->timeSinceLastCheckpointFormatted = round($this->timeSinceLastCheckpoint->totalMilliseconds, 1) . 'ms';
@@ -78,6 +80,9 @@ final readonly class StopwatchCheckpoint implements Arrayable
                           title="Cumulative time at this point">
                         {$this->totalTimeElapsedFormatted}
                     </span>
+
+                    {$this->renderQueryBadge()}
+                    {$this->renderMemoryBadge()}
                 </div>
             </div>
         HTML;
@@ -88,11 +93,53 @@ final readonly class StopwatchCheckpoint implements Arrayable
         $deltaMs = (int) round($this->timeSinceLastCheckpoint->totalMilliseconds);
         $totalMs = (int) round($this->timeSinceStopwatchStart->totalMilliseconds);
 
-        $meta = $this->metadata !== null
-            ? ' (' . $this->formatMetadataAsString() . ')'
-            : '';
+        $parts = [];
 
-        return "[{$deltaMs}ms / {$totalMs}ms] {$this->label}{$meta}";
+        if ($this->metadata !== null) {
+            $parts[] = $this->formatMetadataAsString();
+        }
+
+        if ($this->queryCount !== null) {
+            $parts[] = "{$this->queryCount}q / {$this->queryTimeMs}ms";
+        }
+
+        if ($this->memoryDelta !== null) {
+            $parts[] = $this->memoryDelta;
+        }
+
+        $suffix = $parts !== [] ? ' (' . implode(', ', $parts) . ')' : '';
+
+        return "[{$deltaMs}ms / {$totalMs}ms] {$this->label}{$suffix}";
+    }
+
+    private function renderQueryBadge(): string
+    {
+        if ($this->queryCount === null) {
+            return '';
+        }
+
+        $queryTimeFormatted = round($this->queryTimeMs ?? 0, 1) . 'ms';
+
+        return <<<HTML
+            <span style="font-size: 80%; padding: 2px 3px; color: #8b5cf6; cursor: default;"
+                  title="{$this->queryCount} queries in {$queryTimeFormatted}">
+                {$this->queryCount}q / {$queryTimeFormatted}
+            </span>
+        HTML;
+    }
+
+    private function renderMemoryBadge(): string
+    {
+        if ($this->memoryDelta === null) {
+            return '';
+        }
+
+        return <<<HTML
+            <span style="font-size: 80%; padding: 2px 3px; color: #6b7280; cursor: default;"
+                  title="Usage: {$this->memoryUsage} | Delta: {$this->memoryDelta} | Peak: {$this->memoryPeak}">
+                {$this->memoryDelta}
+            </span>
+        HTML;
     }
 
     private static function formatMetadataValue(mixed $value): string
@@ -136,6 +183,11 @@ final readonly class StopwatchCheckpoint implements Arrayable
      *     totalTimeElapsedFormatted: string,
      *     timeSinceLastCheckpointMs: int,
      *     timeSinceLastCheckpointFormatted: string,
+     *     queryCount: int|null,
+     *     queryTimeMs: float|null,
+     *     memoryUsage: string|null,
+     *     memoryDelta: string|null,
+     *     memoryPeak: string|null,
      * }
      */
     public function toArray(): array
@@ -148,6 +200,11 @@ final readonly class StopwatchCheckpoint implements Arrayable
             'totalTimeElapsedFormatted' => $this->totalTimeElapsedFormatted,
             'timeSinceLastCheckpointMs' => (int) round($this->timeSinceLastCheckpoint->totalMilliseconds),
             'timeSinceLastCheckpointFormatted' => $this->timeSinceLastCheckpointFormatted,
+            'queryCount' => $this->queryCount,
+            'queryTimeMs' => $this->queryTimeMs,
+            'memoryUsage' => $this->memoryUsage,
+            'memoryDelta' => $this->memoryDelta,
+            'memoryPeak' => $this->memoryPeak,
         ];
     }
 }

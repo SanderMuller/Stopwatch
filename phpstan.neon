@@ -26,8 +26,8 @@ parameters:
         narrow_return: true
 
     cognitive_complexity:
-        class: 12
-        function: 5
+        class: 11
+        function: 7
 
     # The level ranges from 0 to 9 and the latter is the highest level
     # more info at https://phpstan.org/user-guide/rule-levels

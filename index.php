@@ -1,18 +1,20 @@
 <?php declare(strict_types=1);
 
+use Faker\Factory;
 use Illuminate\Container\Container;
 use Illuminate\Support\Sleep;
+use SanderMuller\Stopwatch\Stopwatch;
 
 require __DIR__ . '/vendor/autoload.php';
 
-$faker = Faker\Factory::create('nl_NL');
+$faker = Factory::create('nl_NL');
 
 Container::getInstance()
-    ->scoped(SanderMuller\Stopwatch\Stopwatch::class, function (): SanderMuller\Stopwatch\Stopwatch {
-        return SanderMuller\Stopwatch\Stopwatch::new();
+    ->scoped(Stopwatch::class, function (): Stopwatch {
+        return Stopwatch::new();
     });
 
-stopwatch()->start();
+stopwatch()->withMemoryTracking()->start();
 
 Sleep::fake(syncWithCarbon: true);
 
