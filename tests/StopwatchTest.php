@@ -103,11 +103,11 @@ final class StopwatchTest extends TestCase
         $stopwatch->checkpoint('After wait');
         $after = $stopwatch->timeSinceLastCheckpoint();
         self::assertInstanceOf(CarbonInterval::class, $after);
-        self::assertSame(10.0, $after->totalMilliseconds);
+        self::assertEquals(10, $after->totalMilliseconds);
 
         $clock->advance(25);
         $stopwatch->checkpoint('Second');
-        self::assertSame(25.0, $stopwatch->timeSinceLastCheckpoint()->totalMilliseconds);
+        self::assertEquals(25, $stopwatch->timeSinceLastCheckpoint()->totalMilliseconds);
     }
 
     public function test_render_html_contains_total_and_group_label_and_highlighting(): void

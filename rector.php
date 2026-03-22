@@ -2,6 +2,7 @@
 
 use Rector\Caching\ValueObject\Storage\FileCacheStorage;
 use Rector\CodingStyle\Rector\Encapsed\EncapsedStringsToSprintfRector;
+use Rector\CodingStyle\Rector\PostInc\PostIncDecToPreIncDecRector;
 use Rector\Config\RectorConfig;
 use Rector\DeadCode\Rector\PropertyProperty\RemoveNullPropertyInitializationRector;
 use Rector\Naming\Rector\Class_\RenamePropertyToMatchTypeRector;
@@ -27,6 +28,7 @@ return RectorConfig::configure()
     ->withSkip([
         ClosureToArrowFunctionRector::class,
         EncapsedStringsToSprintfRector::class,
+        PostIncDecToPreIncDecRector::class,
         RemoveNullPropertyInitializationRector::class,
         RenameParamToMatchTypeRector::class,
         RenamePropertyToMatchTypeRector::class,
