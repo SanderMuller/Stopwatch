@@ -8,16 +8,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.head_ref }}
 
       - name: Run Laravel Pint
-        uses: aglipanci/laravel-pint-action@2.4
+        uses: aglipanci/laravel-pint-action@2.6
         with:
           verboseMode: true
 
       - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "style: PHP Linting (Pint)"
