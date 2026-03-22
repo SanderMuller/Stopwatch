@@ -26,6 +26,8 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     private int $slowCheckpointThresholdMs = 50;
 
+    private StopwatchOutput $output = StopwatchOutput::Silent;
+
     private ?string $logLevel = null;
 
     public static function new(): self
@@ -69,7 +71,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     /**
      * @param array<array-key, mixed>|null $metadata
      */
-    public function checkpoint(string $label, ?array $metadata = null): self
+    public function checkpoint(string $label, ?array $metadata = null, ?StopwatchOutput $output = null, ?string $logLevel = null): self
     {
         if ($this->ended()) {
             return $this;
@@ -96,6 +98,12 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             timeSinceLastCheckpoint: $this->timeSinceLastCheckpoint,
         );
 
+        $this->emitCheckpoint(
+            metadata: $metadata,
+            output: $output,
+            logLevel: $logLevel,
+        );
+
         return $this;
     }
 
@@ -109,9 +117,14 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
      * @param array<array-key, mixed>|null $metadata
      * @see self::checkpoint()
      */
-    public function lap(string $label, ?array $metadata = null): self
+    public function lap(string $label, ?array $metadata = null, ?StopwatchOutput $output = null, ?string $logLevel = null): self
     {
-        return $this->checkpoint($label, $metadata);
+        return $this->checkpoint(
+            label: $label,
+            metadata: $metadata,
+            output: $output,
+            logLevel: $logLevel,
+        );
     }
 
     /**
@@ -119,11 +132,21 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
      */
     public function log(string $label, ?string $level = null, ?array $metadata = null): self
     {
-        $level ??= $this->logLevel ?? 'debug';
+        return $this->checkpoint(
+            label: $label,
+            metadata: $metadata,
+            output: StopwatchOutput::Log,
+            logLevel: $level,
+        );
+    }
 
-        $this->checkpoint($label, $metadata);
+    public function outputTo(StopwatchOutput $output, ?string $logLevel = null): self
+    {
+        $this->output = $output;
 
-        logger()->log($level, $this->lastCheckpointFormatted(), $metadata ?? []);
+        if ($logLevel !== null) {
+            $this->logLevel = $logLevel;
+        }
 
         return $this;
     }
@@ -135,19 +158,23 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         return $this;
     }
 
+    /**
+     * @param array<array-key, mixed>|null $metadata
+     */
+    private function emitCheckpoint(?array $metadata, ?StopwatchOutput $output = null, ?string $logLevel = null): void
+    {
+        /** @noinspection ForgottenDebugOutputInspection */
+        match ($output ?? $this->output) {
+            StopwatchOutput::Log => logger()->log($logLevel ?? $this->logLevel ?? 'debug', $this->lastCheckpointFormatted(), $metadata ?? []),
+            StopwatchOutput::Stderr => fprintf(STDERR, "  %s\n", $this->lastCheckpointFormatted()),
+            StopwatchOutput::Dump => dump($this->lastCheckpointFormatted()),
+            StopwatchOutput::Silent => null,
+        };
+    }
+
     public function lastCheckpointFormatted(): string
     {
-        $addedCheckpoint = $this->checkpoints->lastCheckpoint();
-
-        if (! $addedCheckpoint instanceof StopwatchCheckpoint) {
-            return '';
-        }
-
-        $msSinceLastCheckpoint = (int) round($addedCheckpoint->timeSinceLastCheckpoint->totalMilliseconds);
-
-        $totalMs = (int) round($this->totalRunDuration()->totalMilliseconds);
-
-        return "[{$msSinceLastCheckpoint}ms / {$totalMs}ms] {$addedCheckpoint->label}";
+        return $this->checkpoints->lastCheckpoint()?->formattedPlainText() ?? '';
     }
 
     public function render(): HtmlString
@@ -162,13 +189,37 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         return $this;
     }
 
+    /**
+     * Wrap a closure and create a checkpoint after execution.
+     *
+     * @template TReturn
+     * @param (callable(): TReturn) $callback
+     * @param array<array-key, mixed>|null $metadata
+     * @return TReturn
+     */
+    public function measure(string $label, callable $callback, ?array $metadata = null, ?StopwatchOutput $output = null, ?string $logLevel = null): mixed
+    {
+        if (! $this->started()) {
+            $this->start();
+        }
+
+        $result = $callback();
+
+        $this->checkpoint(
+            label: $label,
+            metadata: $metadata,
+            output: $output,
+            logLevel: $logLevel,
+        );
+
+        return $result;
+    }
+
     public function finish(): self
     {
         if ($this->endTime instanceof CarbonImmutable) {
             return $this;
         }
-
-        $this->checkpoint('Ended StopWatch');
 
         $this->endTime = CarbonImmutable::now();
 
@@ -215,6 +266,20 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         return "{$ms}ms";
     }
 
+    public function timeSinceLastCheckpointReadable(): string
+    {
+        $lastCheckpoint = $this->checkpoints->lastCheckpoint();
+
+        if (! $lastCheckpoint instanceof StopwatchCheckpoint) {
+            return $this->totalRunDurationReadable();
+        }
+
+        $endTime = $this->endTime ?? CarbonImmutable::now();
+        $ms = round($lastCheckpoint->time->diffInMilliseconds($endTime, absolute: true), 1);
+
+        return "{$ms}ms";
+    }
+
     public function dd(mixed ...$args): never
     {
         $this->finish();
@@ -229,6 +294,50 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     {
         /** @noinspection ForgottenDebugOutputInspection */
         dump($this, ...$args);
+
+        return $this;
+    }
+
+    /**
+     * Write a plain-text phase profile to stderr.
+     *
+     * Output format:
+     *   [3ms / 3ms] Validation
+     *   [25ms / 28ms] DB inserts
+     *   Total: 28ms
+     */
+    public function toStderr(?string $title = null): self
+    {
+        $this->finish();
+
+        if ($title !== null) {
+            fprintf(STDERR, "%s\n", $title);
+        }
+
+        foreach ($this->checkpoints as $checkpoint) {
+            fprintf(STDERR, "  %s\n", $checkpoint->formattedPlainText());
+        }
+
+        fprintf(STDERR, "  Total: %s\n", $this->totalRunDurationReadable());
+
+        return $this;
+    }
+
+    public function toLog(?string $title = null, ?string $level = null): self
+    {
+        $this->finish();
+
+        $level ??= $this->logLevel ?? 'debug';
+
+        if ($title !== null) {
+            logger()->log($level, $title);
+        }
+
+        foreach ($this->checkpoints as $checkpoint) {
+            logger()->log($level, $checkpoint->formattedPlainText(), $checkpoint->metadata ?? []);
+        }
+
+        logger()->log($level, "Total: {$this->totalRunDurationReadable()}");
 
         return $this;
     }
@@ -283,8 +392,12 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
                 {$this->checkpoints->render($this, $this->slowCheckpointThresholdMs)}
             </div>
 
-            <footer style="padding: 10px 15px; display: flex; font-size: 16px;">
-                <span style="margin-left: auto; font-weight: bold; font-size: 18px; text-align: right; line-height: 0.9;">
+            <footer style="padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-size: 16px;">
+                <span style="font-size: 14px; color: #888;">
+                    +{$this->timeSinceLastCheckpointReadable()} after last checkpoint
+                </span>
+
+                <span style="font-weight: bold; font-size: 18px; text-align: right; line-height: 0.9;">
                     {$this->totalRunDurationReadable()}<br/>
 
                     <span style="font-weight: normal; font-size: 12px; color: #888;">Total</span>

@@ -5,6 +5,7 @@ namespace SanderMuller\Stopwatch\Tests;
 use Carbon\CarbonInterval;
 use Illuminate\Support\HtmlString;
 use SanderMuller\Stopwatch\Stopwatch;
+use SanderMuller\Stopwatch\StopwatchOutput;
 
 final class StopwatchTest extends TestCase
 {
@@ -25,7 +26,7 @@ final class StopwatchTest extends TestCase
         self::assertArrayHasKey('endTime', $array);
         self::assertArrayHasKey('checkpoints', $array);
         self::assertIsArray($array['checkpoints']);
-        self::assertCount(3, $array['checkpoints']);
+        self::assertCount(2, $array['checkpoints']);
     }
 
     public function test_call_checkpoint_before_start_and_to_string(): void
@@ -44,7 +45,7 @@ final class StopwatchTest extends TestCase
         self::assertArrayHasKey('endTime', $array);
         self::assertArrayHasKey('checkpoints', $array);
         self::assertIsArray($array['checkpoints']);
-        self::assertCount(3, $array['checkpoints']);
+        self::assertCount(2, $array['checkpoints']);
     }
 
     public function test_to_array_contains_flat_checkpoints_and_grouped_groups(): void
@@ -59,7 +60,7 @@ final class StopwatchTest extends TestCase
         // Flat list
         self::assertArrayHasKey('checkpoints', $data);
         self::assertIsArray($data['checkpoints']);
-        self::assertCount(4, $data['checkpoints']);
+        self::assertCount(3, $data['checkpoints']);
         self::assertArrayHasKey('timeSinceLastCheckpointMs', $data['checkpoints'][0]);
     }
 
@@ -71,7 +72,7 @@ final class StopwatchTest extends TestCase
 
         $data = stopwatch()->toArray();
 
-        self::assertCount(3, $data['checkpoints']);
+        self::assertCount(2, $data['checkpoints']);
     }
 
     public function test_time_since_last_checkpoint_updates_correctly(): void
@@ -115,5 +116,114 @@ final class StopwatchTest extends TestCase
 
         $formatted = app(Stopwatch::class)->lastCheckpointFormatted();
         self::assertMatchesRegularExpression('/\[\d+ms \/ \d+ms] Important/', $formatted);
+    }
+
+    public function test_measure_wraps_closure_and_returns_result(): void
+    {
+        stopwatch()->start();
+
+        $result = stopwatch()->measure('Computation', static fn (): int => 1 + 1);
+
+        self::assertSame(2, $result);
+
+        $data = stopwatch()->toArray();
+        self::assertCount(1, $data['checkpoints']);
+        self::assertSame('Computation', $data['checkpoints'][0]['label']);
+    }
+
+    public function test_measure_with_metadata(): void
+    {
+        stopwatch()->start();
+
+        stopwatch()->measure('DB queries', static fn (): bool => true, ['queries' => 5]);
+
+        $data = stopwatch()->toArray();
+        self::assertSame(['queries' => 5], $data['checkpoints'][0]['metadata']);
+    }
+
+    public function test_measure_auto_starts_stopwatch(): void
+    {
+        self::assertFalse(stopwatch()->started());
+
+        stopwatch()->measure('Auto start', static fn (): bool => true);
+
+        self::assertTrue(stopwatch()->started());
+    }
+
+    public function test_finish_does_not_add_synthetic_checkpoint(): void
+    {
+        stopwatch()->start();
+        stopwatch()->checkpoint('Only');
+        stopwatch()->finish();
+
+        $data = stopwatch()->toArray();
+        self::assertCount(1, $data['checkpoints']);
+        self::assertSame('Only', $data['checkpoints'][0]['label']);
+    }
+
+    public function test_to_stderr_returns_self(): void
+    {
+        stopwatch()->start();
+        usleep(1000);
+        stopwatch()->checkpoint('Phase A');
+        usleep(1000);
+        stopwatch()->checkpoint('Phase B', ['queries' => 3]);
+
+        $returnValue = stopwatch()->toStderr('Profile:');
+        self::assertInstanceOf(Stopwatch::class, $returnValue);
+    }
+
+    public function test_output_defaults_to_silent(): void
+    {
+        stopwatch()->start();
+        stopwatch()->checkpoint('Silent');
+
+        $data = stopwatch()->toArray();
+        self::assertCount(1, $data['checkpoints']);
+        self::assertSame('Silent', $data['checkpoints'][0]['label']);
+    }
+
+    public function test_output_to_returns_self(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $result = $stopwatch->outputTo(StopwatchOutput::Stderr);
+
+        self::assertInstanceOf(Stopwatch::class, $result);
+    }
+
+    public function test_last_checkpoint_formatted_includes_metadata(): void
+    {
+        stopwatch()->start();
+        stopwatch()->checkpoint('WithMeta', ['key' => 'val']);
+
+        $formatted = stopwatch()->lastCheckpointFormatted();
+        self::assertMatchesRegularExpression('/\[\d+ms \/ \d+ms] WithMeta/', $formatted);
+        self::assertStringContainsString('key=val', $formatted);
+    }
+
+    public function test_last_checkpoint_formatted_returns_empty_when_no_checkpoints(): void
+    {
+        stopwatch()->start();
+
+        self::assertSame('', stopwatch()->lastCheckpointFormatted());
+    }
+
+    public function test_formatted_plain_text_handles_non_scalar_metadata(): void
+    {
+        stopwatch()->start();
+        stopwatch()->checkpoint('NonScalar', ['nested' => ['a', 'b']]);
+
+        $formatted = stopwatch()->lastCheckpointFormatted();
+        self::assertStringContainsString('non-scalar value (array)', $formatted);
+    }
+
+    public function test_to_log_returns_self(): void
+    {
+        stopwatch()->start();
+        stopwatch()->checkpoint('Phase A');
+        stopwatch()->checkpoint('Phase B');
+
+        $returnValue = stopwatch()->toLog('Profile:');
+        self::assertInstanceOf(Stopwatch::class, $returnValue);
     }
 }

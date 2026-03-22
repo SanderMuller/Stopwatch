@@ -28,12 +28,68 @@ stopwatch()->checkpoint('First checkpoint');
 stopwatch()->lap('Second checkpoint');
 ```
 
-### Send the timing directly to your log file
+### Output each checkpoint
+
+Configure where each checkpoint is emitted using `outputTo()`:
+
+```php
+use SanderMuller\Stopwatch\StopwatchOutput;
+
+stopwatch()->outputTo(StopwatchOutput::Log)->start();
+
+stopwatch()->checkpoint('First checkpoint');  // Automatically logged
+stopwatch()->checkpoint('Second checkpoint'); // Automatically logged
+```
+
+Available output modes:
+
+| Mode | Description |
+|------|-------------|
+| `StopwatchOutput::Silent` | No output (default) |
+| `StopwatchOutput::Log` | Send to Laravel log |
+| `StopwatchOutput::Stderr` | Write to stderr |
+| `StopwatchOutput::Dump` | Use Laravel's `dump()` |
+
+You can override the output for a single checkpoint:
+
+```php
+stopwatch()->checkpoint('Debug this', output: StopwatchOutput::Dump);
+```
+
+Or use the `log()` shortcut to send a single checkpoint to the log:
+
+```php
+stopwatch()->log('Query executed');
+stopwatch()->log('Query executed', level: 'warning');
+```
+
+### Measure a closure
+
+Wrap a closure to automatically create a checkpoint after execution:
 
 ```php
 stopwatch()->start();
 
-stopwatch()->log('Second checkpoint');
+$result = stopwatch()->measure('Heavy computation', function () {
+    return doExpensiveWork();
+});
+```
+
+### Write a full report
+
+Write all checkpoints and the total duration to stderr or your log:
+
+```php
+stopwatch()->start();
+
+stopwatch()->checkpoint('Validation');
+stopwatch()->checkpoint('DB inserts');
+
+// Write to stderr
+stopwatch()->toStderr('Profile:');
+
+// Or write to the log
+stopwatch()->toLog('Profile:', level: 'info');
 ```
 
 ### Display the total run duration

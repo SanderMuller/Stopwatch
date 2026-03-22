@@ -60,7 +60,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
 
         return <<<HTML
             <div style="display: flex; justify-content: space-between; border-top: 1px solid rgb(243 244 246); padding: 12px 15px;">
-                <div style="display: flex; flex-direction: column; line-height: 0.9;">
+                <div style="display: flex; flex-direction: column; line-height: 1.2;">
                     <label>{$this->label}</label>
 
                     <span style="font-size: 80%; color: #aaa;">{$percentageRunDurationForThisCheckpoint}%</span>
@@ -83,6 +83,34 @@ final readonly class StopwatchCheckpoint implements Arrayable
         HTML;
     }
 
+    public function formattedPlainText(): string
+    {
+        $deltaMs = (int) round($this->timeSinceLastCheckpoint->totalMilliseconds);
+        $totalMs = (int) round($this->timeSinceStopwatchStart->totalMilliseconds);
+
+        $meta = $this->metadata !== null
+            ? ' (' . $this->formatMetadataAsString() . ')'
+            : '';
+
+        return "[{$deltaMs}ms / {$totalMs}ms] {$this->label}{$meta}";
+    }
+
+    private static function formatMetadataValue(mixed $value): string
+    {
+        if (! is_scalar($value) && ! $value instanceof Stringable) {
+            return 'non-scalar value (' . gettype($value) . ')';
+        }
+
+        return (string) $value;
+    }
+
+    private function formatMetadataAsString(): string
+    {
+        return collect($this->metadata)
+            ->map(static fn (mixed $value, string|int $key): string => "{$key}=" . self::formatMetadataValue($value))
+            ->implode(', ');
+    }
+
     private function renderMetadata(): string
     {
         if ($this->metadata === null) {
@@ -90,13 +118,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
         }
 
         $contents = collect($this->metadata)
-            ->implode(static function (mixed $value, string|int $key): string {
-                if (! is_scalar($value) && ! $value instanceof Stringable) {
-                    $value = 'non-scalar value (' . gettype($value) . ')';
-                }
-
-                return "<strong>{$key}:</strong> {$value}<br/>";
-            });
+            ->implode(static fn (mixed $value, string|int $key): string => '<strong>' . $key . ':</strong> ' . self::formatMetadataValue($value) . '<br/>');
 
         return <<<HTML
             <div style="padding: 5px 10px; margin: 5px 0 0; background-color: #fcfcfc; border: 1px solid rgb(243 244 246); border-radius: 5px; line-height: 1.2;">

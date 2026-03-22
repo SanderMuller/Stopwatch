@@ -35,4 +35,10 @@ foreach (range(0, $faker->numberBetween(4, 22)) as $i) {
     stopwatch()->checkpoint($faker->sentence($faker->numberBetween(1, 7)), $meta);
 }
 
+Sleep::for(
+    $faker->boolean(15)
+        ? $faker->numberBetween(175, 1600)
+        : $faker->numberBetween(1, 175)
+)->milliseconds();
+
 echo stopwatch()->render();
