@@ -3,6 +3,7 @@
 namespace SanderMuller\Stopwatch;
 
 use Illuminate\Support\Facades\Blade;
+use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -29,6 +30,7 @@ final class ServiceProvider extends PackageServiceProvider
         });
     }
 
+    /** @phpstan-ignore complexity.functionLike */
     private function configureStopwatch(Stopwatch $stopwatch): Stopwatch
     {
         /** @var array<string, mixed> $config */
@@ -62,6 +64,13 @@ final class ServiceProvider extends PackageServiceProvider
 
         if (($config['track_memory'] ?? false) === true) {
             $stopwatch->withMemoryTracking();
+        }
+
+        /** @var array<class-string<StopwatchNotificationChannel>> $channels */
+        $channels = $config['notification_channels'] ?? [];
+
+        if ($channels !== []) {
+            $stopwatch->notifyUsing($channels);
         }
 
         return $stopwatch;

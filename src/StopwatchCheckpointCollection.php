@@ -3,7 +3,6 @@
 namespace SanderMuller\Stopwatch;
 
 use Carbon\CarbonImmutable;
-use Carbon\CarbonInterval;
 use Illuminate\Support\Collection;
 
 /**
@@ -19,8 +18,8 @@ final class StopwatchCheckpointCollection extends Collection
     public function addCheckpoint(
         string          $label,
         ?array          $metadata,
-        CarbonImmutable $stopwatchStartTime,
-        CarbonInterval  $timeSinceLastCheckpoint,
+        float           $timeSinceLastCheckpointMs,
+        float           $timeSinceStopwatchStartMs,
         CarbonImmutable $time,
         ?int            $queryCount = null,
         ?float          $queryTimeMs = null,
@@ -32,8 +31,8 @@ final class StopwatchCheckpointCollection extends Collection
             new StopwatchCheckpoint(
                 label: $label,
                 metadata: $metadata,
-                timeSinceLastCheckpoint: $timeSinceLastCheckpoint,
-                stopwatchStartTime: $stopwatchStartTime,
+                timeSinceLastCheckpointMs: $timeSinceLastCheckpointMs,
+                timeSinceStopwatchStartMs: $timeSinceStopwatchStartMs,
                 time: $time,
                 queryCount: $queryCount,
                 queryTimeMs: $queryTimeMs,

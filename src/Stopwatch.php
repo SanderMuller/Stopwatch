@@ -11,6 +11,7 @@ use Illuminate\Contracts\Support\Jsonable;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\HtmlString;
+use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
 use Stringable;
 
 /**
@@ -23,7 +24,13 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     private ?CarbonImmutable $endTime = null;
 
-    private ?CarbonInterval $timeSinceLastCheckpoint = null;
+    private ?int $startHrtime = null;
+
+    private ?int $endHrtime = null;
+
+    private ?int $lastCheckpointHrtime = null;
+
+    private ?float $timeSinceLastCheckpointMs = null;
 
     private StopwatchCheckpointCollection $checkpoints;
 
@@ -43,16 +50,22 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     private int $lastMemoryUsage = 0;
 
+    /** @var array<StopwatchNotificationChannel|class-string<StopwatchNotificationChannel>> */
+    private array $notificationChannels = [];
+
+    private ?float $notifyThresholdMs = null;
+
     private bool $enabled = true;
 
-    private function __construct()
-    {
+    private function __construct(
+        private readonly Clock $clock = new SystemClock(),
+    ) {
         $this->checkpoints = StopwatchCheckpointCollection::empty();
     }
 
-    public static function new(): self
+    public static function new(?Clock $clock = null): self
     {
-        return new self();
+        return new self($clock ?? new SystemClock());
     }
 
     public function enable(): self
@@ -92,11 +105,14 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
         $this->checkpoints = StopwatchCheckpointCollection::empty();
 
-        $this->startTime = CarbonImmutable::now();
+        $this->startTime = $this->clock->now();
+        $this->startHrtime = $this->clock->hrtime();
 
         $this->endTime = null;
+        $this->endHrtime = null;
 
-        $this->timeSinceLastCheckpoint = null;
+        $this->lastCheckpointHrtime = null;
+        $this->timeSinceLastCheckpointMs = null;
 
         $this->queryCount = 0;
         $this->queryDurationMs = 0;
@@ -110,12 +126,12 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function started(): bool
     {
-        return $this->startTime instanceof CarbonImmutable;
+        return $this->startHrtime !== null;
     }
 
     public function ended(): bool
     {
-        return $this->endTime instanceof CarbonImmutable;
+        return $this->endHrtime !== null;
     }
 
     /**
@@ -131,15 +147,18 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             $this->start();
         }
 
-        if (! $this->startTime instanceof CarbonImmutable) {
+        if ($this->startHrtime === null) {
             throw new Exception('Stopwatch has not been started properly.');
         }
 
-        $now = CarbonImmutable::now();
-        $lastCheckpoint = $this->checkpoints->lastCheckpoint();
-        $previousTime = $lastCheckpoint instanceof StopwatchCheckpoint ? $lastCheckpoint->time : $this->startTime;
+        $nowHrtime = $this->clock->hrtime();
+        $now = $this->clock->now();
 
-        $this->timeSinceLastCheckpoint = $previousTime->diffAsCarbonInterval($now, absolute: true)->cascade();
+        $timeSinceLastCheckpointMs = ($nowHrtime - ($this->lastCheckpointHrtime ?? $this->startHrtime)) / 1_000_000;
+        $timeSinceStopwatchStartMs = ($nowHrtime - $this->startHrtime) / 1_000_000;
+
+        $this->timeSinceLastCheckpointMs = $timeSinceLastCheckpointMs;
+        $this->lastCheckpointHrtime = $nowHrtime;
 
         $queryMetrics = $this->trackingQueries ? $this->collectQueryMetrics() : null;
         $memoryMetrics = $this->trackingMemory ? $this->collectMemoryMetrics() : null;
@@ -147,8 +166,8 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->checkpoints->addCheckpoint(
             label: $label,
             metadata: $metadata,
-            stopwatchStartTime: $this->startTime,
-            timeSinceLastCheckpoint: $this->timeSinceLastCheckpoint,
+            timeSinceLastCheckpointMs: $timeSinceLastCheckpointMs,
+            timeSinceStopwatchStartMs: $timeSinceStopwatchStartMs,
             time: $now,
             queryCount: $queryMetrics['queries'] ?? null,
             queryTimeMs: $queryMetrics['query_time_ms'] ?? null,
@@ -170,7 +189,17 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function timeSinceLastCheckpoint(): CarbonInterval
     {
-        return $this->timeSinceLastCheckpoint ?? now()->diffAsCarbonInterval($this->startTime, absolute: true)->cascade();
+        if ($this->timeSinceLastCheckpointMs !== null) {
+            return CarbonInterval::milliseconds($this->timeSinceLastCheckpointMs)->cascade();
+        }
+
+        if ($this->startHrtime === null) {
+            return CarbonInterval::milliseconds(0)->cascade();
+        }
+
+        $ms = ($this->clock->hrtime() - $this->startHrtime) / 1_000_000;
+
+        return CarbonInterval::milliseconds($ms)->cascade();
     }
 
     /**
@@ -363,13 +392,39 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function finish(): self
     {
-        if (! $this->enabled || $this->endTime instanceof CarbonImmutable) {
+        if (! $this->enabled || $this->endHrtime !== null) {
             return $this;
         }
 
-        $this->endTime = CarbonImmutable::now();
+        $this->endTime = $this->clock->now();
+        $this->endHrtime = $this->clock->hrtime();
+
+        $this->dispatchNotifications();
 
         return $this;
+    }
+
+    private function dispatchNotifications(): void
+    {
+        if ($this->notifyThresholdMs === null || $this->notificationChannels === [] || $this->startHrtime === null || $this->endHrtime === null) {
+            return;
+        }
+
+        $totalMs = ($this->endHrtime - $this->startHrtime) / 1_000_000;
+
+        if ($totalMs < $this->notifyThresholdMs) {
+            return;
+        }
+
+        // Channels may call toLog()/toHtml() which call finish() — this is safe
+        // because endHrtime is already set, so finish() will no-op.
+        foreach ($this->notificationChannels as $notificationChannel) {
+            if (is_string($notificationChannel)) {
+                $notificationChannel = app($notificationChannel);
+            }
+
+            $notificationChannel->notify($this);
+        }
     }
 
     /**
@@ -392,17 +447,14 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function totalRunDuration(): CarbonInterval
     {
-        if (! $this->started()) {
-            return CarbonInterval::milliseconds(0);
+        if ($this->startHrtime === null) {
+            return CarbonInterval::milliseconds(0)->cascade();
         }
 
-        if (! $this->startTime instanceof CarbonImmutable) {
-            throw new Exception('Stopwatch has not been started properly.');
-        }
+        $endHrtime = $this->endHrtime ?? $this->clock->hrtime();
+        $ms = ($endHrtime - $this->startHrtime) / 1_000_000;
 
-        $endTime = $this->endTime ?? CarbonImmutable::now();
-
-        return $this->startTime->diffAsCarbonInterval($endTime, absolute: true)->cascade();
+        return CarbonInterval::milliseconds($ms)->cascade();
     }
 
     public function totalRunDurationReadable(): string
@@ -414,14 +466,12 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function timeSinceLastCheckpointReadable(): string
     {
-        $lastCheckpoint = $this->checkpoints->lastCheckpoint();
-
-        if (! $lastCheckpoint instanceof StopwatchCheckpoint) {
+        if ($this->lastCheckpointHrtime === null) {
             return $this->totalRunDurationReadable();
         }
 
-        $endTime = $this->endTime ?? CarbonImmutable::now();
-        $ms = round($lastCheckpoint->time->diffInMilliseconds($endTime, absolute: true), 1);
+        $endHrtime = $this->endHrtime ?? $this->clock->hrtime();
+        $ms = round(($endHrtime - $this->lastCheckpointHrtime) / 1_000_000, 1);
 
         return "{$ms}ms";
     }
@@ -465,6 +515,25 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         }
 
         fprintf(STDERR, "  Total: %s\n", $this->totalRunDurationReadable());
+
+        return $this;
+    }
+
+    /**
+     * @param array<StopwatchNotificationChannel|class-string<StopwatchNotificationChannel>> $channels
+     */
+    public function notifyUsing(array $channels): self
+    {
+        $this->notificationChannels = $channels;
+
+        return $this;
+    }
+
+    public function notifyIfSlowerThan(int|CarbonInterval $threshold): self
+    {
+        $this->notifyThresholdMs = $threshold instanceof CarbonInterval
+            ? $threshold->totalMilliseconds
+            : (float) $threshold;
 
         return $this;
     }
@@ -576,12 +645,14 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     {
         $this->finish();
 
+        $totalMs = $this->totalRunDuration()->totalMilliseconds;
+
         return [
             'startTime' => $this->startTime?->format('H:i:s.u'),
             'endTime' => $this->endTime?->format('H:i:s.u'),
             'checkpoints' => $this->checkpoints->toArray(),
-            'totalRunDuration' => $this->totalRunDurationReadable(),
-            'totalRunDurationMs' => (int) round($this->totalRunDuration()->totalMilliseconds),
+            'totalRunDuration' => round($totalMs, 1) . 'ms',
+            'totalRunDurationMs' => (int) round($totalMs),
         ];
     }
 

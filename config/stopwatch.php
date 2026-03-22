@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+use SanderMuller\Stopwatch\Notifications\LogChannel;
 use SanderMuller\Stopwatch\StopwatchOutput;
 
 return [
@@ -76,5 +77,37 @@ return [
     */
 
     'track_memory' => (bool) env('STOPWATCH_TRACK_MEMORY', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notification Channels
+    |--------------------------------------------------------------------------
+    |
+    | Channels to use when notifyIfSlowerThan() triggers. Each entry
+    | should be a class name implementing StopwatchNotificationChannel.
+    | The class will be resolved from the container, so you can
+    | bind custom constructor arguments if needed.
+    |
+    */
+
+    'notification_channels' => [
+        LogChannel::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mail Notification Settings
+    |--------------------------------------------------------------------------
+    |
+    | Settings for the MailChannel notification channel. The recipient
+    | address is required when using MailChannel. The subject line
+    | defaults to including the total duration.
+    |
+    */
+
+    'mail' => [
+        'to' => env('STOPWATCH_MAIL_TO'),
+        'subject' => env('STOPWATCH_MAIL_SUBJECT'),
+    ],
 
 ];

@@ -12,6 +12,8 @@ use Stringable;
  */
 final readonly class StopwatchCheckpoint implements Arrayable
 {
+    public CarbonInterval $timeSinceLastCheckpoint;
+
     public CarbonInterval $timeSinceStopwatchStart;
 
     public string $totalTimeElapsedFormatted;
@@ -24,8 +26,8 @@ final readonly class StopwatchCheckpoint implements Arrayable
     public function __construct(
         public string          $label,
         public ?array          $metadata,
-        public CarbonInterval  $timeSinceLastCheckpoint,
-        CarbonImmutable        $stopwatchStartTime,
+        float                  $timeSinceLastCheckpointMs,
+        float                  $timeSinceStopwatchStartMs,
         public CarbonImmutable $time,
         public ?int            $queryCount = null,
         public ?float          $queryTimeMs = null,
@@ -33,11 +35,12 @@ final readonly class StopwatchCheckpoint implements Arrayable
         public ?string         $memoryDelta = null,
         public ?string         $memoryPeak = null,
     ) {
-        $this->timeSinceStopwatchStart = $stopwatchStartTime->diffAsCarbonInterval($this->time, absolute: true)->cascade();
+        $this->timeSinceLastCheckpoint = CarbonInterval::milliseconds($timeSinceLastCheckpointMs)->cascade();
+        $this->timeSinceStopwatchStart = CarbonInterval::milliseconds($timeSinceStopwatchStartMs)->cascade();
 
-        $this->timeSinceLastCheckpointFormatted = round($this->timeSinceLastCheckpoint->totalMilliseconds, 1) . 'ms';
+        $this->timeSinceLastCheckpointFormatted = round($timeSinceLastCheckpointMs, 1) . 'ms';
 
-        $this->totalTimeElapsedFormatted = round($this->timeSinceStopwatchStart->totalMilliseconds) . 'ms';
+        $this->totalTimeElapsedFormatted = round($timeSinceStopwatchStartMs) . 'ms';
     }
 
     public function render(Stopwatch $stopWatch, int $slowThreshold): string

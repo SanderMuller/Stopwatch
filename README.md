@@ -147,6 +147,100 @@ stopwatch()->toStderr('Profile:');
 stopwatch()->toLog('Profile:', level: 'info');
 ```
 
+### Conditional notifications
+
+Get notified when a request or operation exceeds a time threshold. Set up the threshold as a hook — notifications are dispatched automatically when the stopwatch finishes:
+
+```php
+stopwatch()->notifyIfSlowerThan(500);
+
+stopwatch()->checkpoint('Fetch order');
+stopwatch()->checkpoint('Generate PDF');
+stopwatch()->checkpoint('Upload to S3');
+
+stopwatch()->finish(); // notifications dispatch here if total >= 500ms
+```
+
+The threshold is also checked on implicit finishes (`render()`, `toArray()`, `toLog()`, etc.), and also accepts `CarbonInterval`:
+
+```php
+stopwatch()->notifyIfSlowerThan(CarbonInterval::seconds(2));
+```
+
+This pairs well with the middleware — set the threshold in a service provider, and every request that exceeds it will trigger a notification:
+
+```php
+// AppServiceProvider::boot()
+stopwatch()->notifyIfSlowerThan(500);
+```
+
+By default, notifications are sent to the log using the `LogChannel`. You can configure which channels are used in `config/stopwatch.php`:
+
+```php
+'notification_channels' => [
+    \SanderMuller\Stopwatch\Notifications\LogChannel::class,
+],
+```
+
+#### Email notifications
+
+Add `MailChannel` to receive an email with the stopwatch's HTML report when a threshold is exceeded:
+
+```php
+'notification_channels' => [
+    \SanderMuller\Stopwatch\Notifications\LogChannel::class,
+    \SanderMuller\Stopwatch\Notifications\MailChannel::class,
+],
+```
+
+Configure the recipient in your `.env`:
+
+```env
+STOPWATCH_MAIL_TO=dev-team@example.com
+STOPWATCH_MAIL_SUBJECT="Slow request detected"  # optional
+```
+
+Or bind the channel with constructor arguments:
+
+```php
+$this->app->bind(MailChannel::class, fn () => new MailChannel(
+    to: 'dev-team@example.com',
+    subject: 'Slow request',
+));
+```
+
+#### Custom notification channels
+
+Create your own channel by implementing `StopwatchNotificationChannel`:
+
+```php
+use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
+use SanderMuller\Stopwatch\Stopwatch;
+
+class SlackChannel implements StopwatchNotificationChannel
+{
+    public function notify(Stopwatch $stopwatch): void
+    {
+        Slack::message("Slow request: {$stopwatch->totalRunDurationReadable()}");
+    }
+}
+```
+
+Register it in your config:
+
+```php
+'notification_channels' => [
+    \SanderMuller\Stopwatch\Notifications\LogChannel::class,
+    \App\Stopwatch\SlackChannel::class,
+],
+```
+
+Or set channels at runtime:
+
+```php
+stopwatch()->notifyUsing([new SlackChannel()]);
+```
+
 ### Render as HTML
 
 Render a neat HTML output showing the total execution time, each checkpoint and the time between each checkpoint.

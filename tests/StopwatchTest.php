@@ -5,7 +5,13 @@ namespace SanderMuller\Stopwatch\Tests;
 use Carbon\CarbonInterval;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\HtmlString;
+use SanderMuller\Stopwatch\FakeClock;
+use SanderMuller\Stopwatch\Notifications\LogChannel;
+use SanderMuller\Stopwatch\Notifications\MailChannel;
+use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
 use SanderMuller\Stopwatch\Stopwatch;
 use SanderMuller\Stopwatch\StopwatchMiddleware;
 use SanderMuller\Stopwatch\StopwatchOutput;
@@ -14,17 +20,19 @@ final class StopwatchTest extends TestCase
 {
     public function test_basic_start_checkpoint_and_to_string(): void
     {
-        stopwatch()->start();
-        usleep(5000); // 5ms
-        stopwatch()->checkpoint('First');
-        usleep(2000); // 2ms
-        stopwatch()->checkpoint('Second');
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->start();
+        $clock->advance(5);
+        $stopwatch->checkpoint('First');
+        $clock->advance(2);
+        $stopwatch->checkpoint('Second');
 
-        $str = stopwatch()->toString();
+        $str = $stopwatch->toString();
         self::assertIsString($str);
         self::assertStringEndsWith('ms', $str);
 
-        $array = stopwatch()->toArray();
+        $array = $stopwatch->toArray();
         self::assertArrayHasKey('startTime', $array);
         self::assertArrayHasKey('endTime', $array);
         self::assertArrayHasKey('checkpoints', $array);
@@ -34,16 +42,18 @@ final class StopwatchTest extends TestCase
 
     public function test_call_checkpoint_before_start_and_to_string(): void
     {
-        usleep(5000); // 5ms
-        stopwatch()->checkpoint('First');
-        usleep(2000); // 2ms
-        stopwatch()->checkpoint('Second');
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $clock->advance(5);
+        $stopwatch->checkpoint('First');
+        $clock->advance(2);
+        $stopwatch->checkpoint('Second');
 
-        $str = stopwatch()->toString();
+        $str = $stopwatch->toString();
         self::assertIsString($str);
         self::assertStringEndsWith('ms', $str);
 
-        $array = stopwatch()->toArray();
+        $array = $stopwatch->toArray();
         self::assertArrayHasKey('startTime', $array);
         self::assertArrayHasKey('endTime', $array);
         self::assertArrayHasKey('checkpoints', $array);
@@ -53,12 +63,13 @@ final class StopwatchTest extends TestCase
 
     public function test_to_array_contains_flat_checkpoints_and_grouped_groups(): void
     {
-        stopwatch()->start();
-        stopwatch()->checkpoint('A1');
-        stopwatch()->checkpoint('A2');
-        stopwatch()->checkpoint('B1');
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
+        $stopwatch->checkpoint('A1');
+        $stopwatch->checkpoint('A2');
+        $stopwatch->checkpoint('B1');
 
-        $data = stopwatch()->toArray();
+        $data = $stopwatch->toArray();
 
         // Flat list
         self::assertArrayHasKey('checkpoints', $data);
@@ -69,42 +80,47 @@ final class StopwatchTest extends TestCase
 
     public function test_group_aliases_do_not_break_group_api(): void
     {
-        stopwatch()->start();
-        stopwatch()->checkpoint('S1');
-        stopwatch()->checkpoint('G1');
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
+        $stopwatch->checkpoint('S1');
+        $stopwatch->checkpoint('G1');
 
-        $data = stopwatch()->toArray();
+        $data = $stopwatch->toArray();
 
         self::assertCount(2, $data['checkpoints']);
     }
 
     public function test_time_since_last_checkpoint_updates_correctly(): void
     {
-        stopwatch()->start();
-        $carbonInterval = stopwatch()->timeSinceLastCheckpoint();
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->start();
+        $carbonInterval = $stopwatch->timeSinceLastCheckpoint();
         self::assertInstanceOf(CarbonInterval::class, $carbonInterval);
-        self::assertGreaterThanOrEqual(0, $carbonInterval->totalMilliseconds);
+        self::assertSame(0.0, $carbonInterval->totalMilliseconds);
 
-        usleep(2000); // wait 2ms
-        stopwatch()->checkpoint('After wait');
-        $after = stopwatch()->timeSinceLastCheckpoint();
+        $clock->advance(10);
+        $stopwatch->checkpoint('After wait');
+        $after = $stopwatch->timeSinceLastCheckpoint();
         self::assertInstanceOf(CarbonInterval::class, $after);
-        self::assertGreaterThanOrEqual(0, $after->totalMilliseconds);
+        self::assertSame(10.0, $after->totalMilliseconds);
 
-        usleep(2000);
-        $later = stopwatch()->timeSinceLastCheckpoint();
-        self::assertGreaterThanOrEqual(1, round($later->totalMilliseconds));
+        $clock->advance(25);
+        $stopwatch->checkpoint('Second');
+        self::assertSame(25.0, $stopwatch->timeSinceLastCheckpoint()->totalMilliseconds);
     }
 
     public function test_render_html_contains_total_and_group_label_and_highlighting(): void
     {
-        stopwatch()->start();
-        stopwatch()->checkpoint('C1');
-        stopwatch()->slowCheckpointThreshold(0); // mark all as slow for deterministic highlighting
-        usleep(600);
-        stopwatch()->checkpoint('C2');
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->start();
+        $stopwatch->checkpoint('C1');
+        $stopwatch->slowCheckpointThreshold(0); // mark all as slow for deterministic highlighting
+        $clock->advance(100);
+        $stopwatch->checkpoint('C2');
 
-        $htmlString = stopwatch()->render();
+        $htmlString = $stopwatch->render();
         self::assertInstanceOf(HtmlString::class, $htmlString);
         $out = (string) $htmlString;
         self::assertStringContainsString('Total', $out);
@@ -114,74 +130,85 @@ final class StopwatchTest extends TestCase
 
     public function test_last_checkpoint_formatted_contains_brackets_and_label(): void
     {
-        stopwatch()->start();
-        stopwatch()->checkpoint('Important');
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->start();
+        $clock->advance(3);
+        $stopwatch->checkpoint('Important');
 
-        $formatted = app(Stopwatch::class)->lastCheckpointFormatted();
-        self::assertMatchesRegularExpression('/\[\d+ms \/ \d+ms] Important/', $formatted);
+        $formatted = $stopwatch->lastCheckpointFormatted();
+        self::assertSame('[3ms / 3ms] Important', $formatted);
     }
 
     public function test_measure_wraps_closure_and_returns_result(): void
     {
-        stopwatch()->start();
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
 
-        $result = stopwatch()->measure('Computation', static fn (): int => 1 + 1);
+        $result = $stopwatch->measure('Computation', static fn (): int => 1 + 1);
 
         self::assertSame(2, $result);
 
-        $data = stopwatch()->toArray();
+        $data = $stopwatch->toArray();
         self::assertCount(1, $data['checkpoints']);
         self::assertSame('Computation', $data['checkpoints'][0]['label']);
     }
 
     public function test_measure_with_metadata(): void
     {
-        stopwatch()->start();
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
 
-        stopwatch()->measure('DB queries', static fn (): bool => true, ['queries' => 5]);
+        $stopwatch->measure('DB queries', static fn (): bool => true, ['queries' => 5]);
 
-        $data = stopwatch()->toArray();
+        $data = $stopwatch->toArray();
         self::assertSame(['queries' => 5], $data['checkpoints'][0]['metadata']);
     }
 
     public function test_measure_auto_starts_stopwatch(): void
     {
-        self::assertFalse(stopwatch()->started());
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
 
-        stopwatch()->measure('Auto start', static fn (): bool => true);
+        self::assertFalse($stopwatch->started());
 
-        self::assertTrue(stopwatch()->started());
+        $stopwatch->measure('Auto start', static fn (): bool => true);
+
+        self::assertTrue($stopwatch->started());
     }
 
     public function test_finish_does_not_add_synthetic_checkpoint(): void
     {
-        stopwatch()->start();
-        stopwatch()->checkpoint('Only');
-        stopwatch()->finish();
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
+        $stopwatch->checkpoint('Only');
+        $stopwatch->finish();
 
-        $data = stopwatch()->toArray();
+        $data = $stopwatch->toArray();
         self::assertCount(1, $data['checkpoints']);
         self::assertSame('Only', $data['checkpoints'][0]['label']);
     }
 
     public function test_to_stderr_returns_self(): void
     {
-        stopwatch()->start();
-        usleep(1000);
-        stopwatch()->checkpoint('Phase A');
-        usleep(1000);
-        stopwatch()->checkpoint('Phase B', ['queries' => 3]);
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->start();
+        $clock->advance(3);
+        $stopwatch->checkpoint('Phase A');
+        $clock->advance(5);
+        $stopwatch->checkpoint('Phase B', ['queries' => 3]);
 
-        $returnValue = stopwatch()->toStderr('Profile:');
+        $returnValue = $stopwatch->toStderr('Profile:');
         self::assertInstanceOf(Stopwatch::class, $returnValue);
     }
 
     public function test_output_defaults_to_silent(): void
     {
-        stopwatch()->start();
-        stopwatch()->checkpoint('Silent');
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
+        $stopwatch->checkpoint('Silent');
 
-        $data = stopwatch()->toArray();
+        $data = $stopwatch->toArray();
         self::assertCount(1, $data['checkpoints']);
         self::assertSame('Silent', $data['checkpoints'][0]['label']);
     }
@@ -196,37 +223,42 @@ final class StopwatchTest extends TestCase
 
     public function test_last_checkpoint_formatted_includes_metadata(): void
     {
-        stopwatch()->start();
-        stopwatch()->checkpoint('WithMeta', ['key' => 'val']);
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->start();
+        $clock->advance(7);
+        $stopwatch->checkpoint('WithMeta', ['key' => 'val']);
 
-        $formatted = stopwatch()->lastCheckpointFormatted();
-        self::assertMatchesRegularExpression('/\[\d+ms \/ \d+ms] WithMeta/', $formatted);
-        self::assertStringContainsString('key=val', $formatted);
+        $formatted = $stopwatch->lastCheckpointFormatted();
+        self::assertSame('[7ms / 7ms] WithMeta (key=val)', $formatted);
     }
 
     public function test_last_checkpoint_formatted_returns_empty_when_no_checkpoints(): void
     {
-        stopwatch()->start();
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
 
-        self::assertSame('', stopwatch()->lastCheckpointFormatted());
+        self::assertSame('', $stopwatch->lastCheckpointFormatted());
     }
 
     public function test_formatted_plain_text_handles_non_scalar_metadata(): void
     {
-        stopwatch()->start();
-        stopwatch()->checkpoint('NonScalar', ['nested' => ['a', 'b']]);
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
+        $stopwatch->checkpoint('NonScalar', ['nested' => ['a', 'b']]);
 
-        $formatted = stopwatch()->lastCheckpointFormatted();
+        $formatted = $stopwatch->lastCheckpointFormatted();
         self::assertStringContainsString('non-scalar value (array)', $formatted);
     }
 
     public function test_to_log_returns_self(): void
     {
-        stopwatch()->start();
-        stopwatch()->checkpoint('Phase A');
-        stopwatch()->checkpoint('Phase B');
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
+        $stopwatch->checkpoint('Phase A');
+        $stopwatch->checkpoint('Phase B');
 
-        $returnValue = stopwatch()->toLog('Profile:');
+        $returnValue = $stopwatch->toLog('Profile:');
         self::assertInstanceOf(Stopwatch::class, $returnValue);
     }
 
@@ -279,12 +311,13 @@ final class StopwatchTest extends TestCase
 
     public function test_with_memory_tracking_captures_memory_metrics(): void
     {
-        stopwatch()->withMemoryTracking()->start();
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->withMemoryTracking()->start();
 
         $dummy = str_repeat('x', 1024);
-        stopwatch()->checkpoint('After alloc');
+        $stopwatch->checkpoint('After alloc');
 
-        $data = stopwatch()->toArray();
+        $data = $stopwatch->toArray();
 
         self::assertNotNull($data['checkpoints'][0]['memoryUsage']);
         self::assertNotNull($data['checkpoints'][0]['memoryDelta']);
@@ -295,11 +328,12 @@ final class StopwatchTest extends TestCase
 
     public function test_without_memory_tracking_no_memory_data(): void
     {
-        stopwatch()->start();
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
 
-        stopwatch()->checkpoint('No tracking');
+        $stopwatch->checkpoint('No tracking');
 
-        $data = stopwatch()->toArray();
+        $data = $stopwatch->toArray();
 
         self::assertNull($data['checkpoints'][0]['memoryUsage']);
     }
@@ -368,24 +402,27 @@ final class StopwatchTest extends TestCase
 
     public function test_to_server_timing_with_checkpoints(): void
     {
-        $stopwatch = Stopwatch::new();
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
         $stopwatch->start();
+        $clock->advance(5);
         $stopwatch->checkpoint('Validation');
+        $clock->advance(10);
         $stopwatch->checkpoint('DB queries');
 
         $header = $stopwatch->toServerTiming();
 
-        self::assertStringContainsString('Validation;dur=', $header);
+        self::assertStringContainsString('Validation;dur=5', $header);
         self::assertStringContainsString('desc="Validation"', $header);
-        self::assertStringContainsString('DB-queries;dur=', $header);
+        self::assertStringContainsString('DB-queries;dur=10', $header);
         self::assertStringContainsString('desc="DB queries"', $header);
-        self::assertStringContainsString('total;dur=', $header);
+        self::assertStringContainsString('total;dur=15', $header);
         self::assertStringContainsString('desc="Total"', $header);
     }
 
     public function test_to_server_timing_without_checkpoints(): void
     {
-        $stopwatch = Stopwatch::new();
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
         $stopwatch->start();
 
         $header = $stopwatch->toServerTiming();
@@ -396,7 +433,7 @@ final class StopwatchTest extends TestCase
 
     public function test_to_server_timing_escapes_special_characters_in_label(): void
     {
-        $stopwatch = Stopwatch::new();
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
         $stopwatch->start();
         $stopwatch->checkpoint('Label with "quotes" and \\backslash');
 
@@ -447,5 +484,187 @@ final class StopwatchTest extends TestCase
 
         self::assertStringContainsString('Total', $rendered);
         self::assertStringContainsString('Blade test', $rendered);
+    }
+
+    public function test_notify_if_slower_than_notifies_on_finish(): void
+    {
+        Log::spy();
+
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->notifyUsing([LogChannel::class]);
+        $stopwatch->notifyIfSlowerThan(50);
+        $stopwatch->start();
+        $clock->advance(100);
+        $stopwatch->checkpoint('Slow work');
+
+        self::assertFalse($stopwatch->ended());
+
+        $stopwatch->finish();
+
+        self::assertTrue($stopwatch->ended());
+        Log::shouldHaveReceived('log')->atLeast()->once();
+    }
+
+    public function test_notify_if_slower_than_skips_when_under_threshold(): void
+    {
+        Log::spy();
+
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->notifyUsing([LogChannel::class]);
+        $stopwatch->notifyIfSlowerThan(500);
+        $stopwatch->start();
+        $clock->advance(10);
+        $stopwatch->checkpoint('Fast work');
+        $stopwatch->finish();
+
+        self::assertTrue($stopwatch->ended());
+        Log::shouldNotHaveReceived('log');
+    }
+
+    public function test_notify_if_slower_than_triggers_on_implicit_finish(): void
+    {
+        Log::spy();
+
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->notifyUsing([LogChannel::class]);
+        $stopwatch->notifyIfSlowerThan(50);
+        $stopwatch->start();
+        $clock->advance(100);
+        $stopwatch->checkpoint('Slow work');
+
+        // toArray() implicitly calls finish()
+        $stopwatch->toArray();
+
+        Log::shouldHaveReceived('log')->atLeast()->once();
+    }
+
+    public function test_notify_if_slower_than_returns_self_when_disabled(): void
+    {
+        $stopwatch = Stopwatch::new();
+        $stopwatch->disable();
+
+        $result = $stopwatch->notifyIfSlowerThan(1);
+
+        self::assertInstanceOf(Stopwatch::class, $result);
+    }
+
+    public function test_notify_if_slower_than_uses_custom_channel(): void
+    {
+        $called = false;
+
+        $channel = new class ($called) implements StopwatchNotificationChannel {
+            public function __construct(private bool &$called) {}
+
+            public function notify(Stopwatch $stopwatch): void
+            {
+                $this->called = true;
+            }
+        };
+
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->notifyUsing([$channel]);
+        $stopwatch->notifyIfSlowerThan(10);
+        $stopwatch->start();
+        $clock->advance(50);
+        $stopwatch->checkpoint('Work');
+        $stopwatch->finish();
+
+        self::assertTrue($called);
+    }
+
+    public function test_notify_if_slower_than_does_nothing_without_channels(): void
+    {
+        Log::spy();
+
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->notifyUsing([]);
+        $stopwatch->notifyIfSlowerThan(10);
+        $stopwatch->start();
+        $clock->advance(50);
+        $stopwatch->checkpoint('Work');
+        $stopwatch->finish();
+
+        Log::shouldNotHaveReceived('log');
+    }
+
+    public function test_mail_channel_sends_email_on_finish(): void
+    {
+        Mail::spy();
+
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->notifyUsing([new MailChannel(to: 'admin@example.com')]);
+        $stopwatch->notifyIfSlowerThan(100);
+        $stopwatch->start();
+        $clock->advance(200);
+        $stopwatch->checkpoint('Slow operation');
+        $stopwatch->finish();
+
+        Mail::shouldHaveReceived('html')->once();
+    }
+
+    public function test_mail_channel_skips_when_no_recipient(): void
+    {
+        Mail::spy();
+
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->notifyUsing([new MailChannel()]);
+        $stopwatch->notifyIfSlowerThan(100);
+        $stopwatch->start();
+        $clock->advance(200);
+        $stopwatch->checkpoint('Slow operation');
+        $stopwatch->finish();
+
+        Mail::shouldNotHaveReceived('html');
+    }
+
+    public function test_notify_threshold_persists_across_restart(): void
+    {
+        Log::spy();
+
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->notifyUsing([LogChannel::class]);
+        $stopwatch->notifyIfSlowerThan(50);
+        $stopwatch->start();
+        $clock->advance(100);
+        $stopwatch->checkpoint('First run');
+        $stopwatch->finish();
+
+        Log::shouldHaveReceived('log')->atLeast()->once();
+
+        // Restart — threshold persists
+        Log::spy();
+        $stopwatch->restart();
+        $clock->advance(100);
+        $stopwatch->checkpoint('Second run');
+        $stopwatch->finish();
+
+        Log::shouldHaveReceived('log')->atLeast()->once();
+    }
+
+    public function test_to_array_contains_precise_timing_values(): void
+    {
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->start();
+        $clock->advance(25);
+        $stopwatch->checkpoint('First');
+        $clock->advance(75);
+        $stopwatch->checkpoint('Second');
+
+        $data = $stopwatch->toArray();
+
+        self::assertSame(25, $data['checkpoints'][0]['timeSinceLastCheckpointMs']);
+        self::assertSame(25, $data['checkpoints'][0]['totalTimeElapsedMs']);
+        self::assertSame(75, $data['checkpoints'][1]['timeSinceLastCheckpointMs']);
+        self::assertSame(100, $data['checkpoints'][1]['totalTimeElapsedMs']);
+        self::assertSame(100, $data['totalRunDurationMs']);
     }
 }
