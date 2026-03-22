@@ -267,7 +267,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
                 return;
             }
 
-            $this->queryCount++;
+            ++$this->queryCount;
             $this->queryDurationMs += $query->time;
         });
 
