@@ -1,6 +1,6 @@
 # Stopwatch for PHP & Laravel
 
-Profile parts of your code and find the bottlenecks.
+A lightweight profiler for PHP and Laravel. Add checkpoints to your code, measure closures, track queries and memory, and see where time is spent. Output as HTML, Server-Timing headers, log entries, or Debugbar timelines.
 
 **Requires PHP 8.3+**
 
