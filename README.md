@@ -67,12 +67,12 @@ stopwatch()->checkpoint('Second checkpoint'); // Automatically logged
 
 Available output modes:
 
-| Mode                      | Description            |
-|---------------------------|------------------------|
-| `StopwatchOutput::Silent` | No output (default)    |
-| `StopwatchOutput::Log`    | Send to Laravel log    |
-| `StopwatchOutput::Stderr` | Write to stderr        |
-| `StopwatchOutput::Dump`   | Use Laravel's `dump()` |
+| Mode                      | Description                          |
+|---------------------------|--------------------------------------|
+| `StopwatchOutput::Silent` | Collect only, render later (default) |
+| `StopwatchOutput::Log`    | Send to Laravel log                  |
+| `StopwatchOutput::Stderr` | Write to stderr                      |
+| `StopwatchOutput::Dump`   | Use Laravel's `dump()`               |
 
 You can override the output for a single checkpoint:
 
