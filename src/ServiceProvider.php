@@ -2,7 +2,9 @@
 
 namespace SanderMuller\Stopwatch;
 
+use Barryvdh\Debugbar\LaravelDebugbar;
 use Illuminate\Support\Facades\Blade;
+use SanderMuller\Stopwatch\Integrations\DebugbarCollector;
 use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -28,6 +30,21 @@ final class ServiceProvider extends PackageServiceProvider
         Blade::directive('stopwatch', function (): string {
             return '<?php echo app(' . Stopwatch::class . '::class)->render(); ?>';
         });
+
+        $this->registerDebugbar();
+    }
+
+    private function registerDebugbar(): void
+    {
+        if (! class_exists(LaravelDebugbar::class) || ! $this->app->bound(LaravelDebugbar::class)) {
+            return;
+        }
+
+        $laravelDebugbar = $this->app->make(LaravelDebugbar::class);
+
+        if ($laravelDebugbar->isEnabled()) {
+            $laravelDebugbar->addCollector(new DebugbarCollector($this->app->make(Stopwatch::class)));
+        }
     }
 
     /** @phpstan-ignore complexity.functionLike */
@@ -71,6 +88,10 @@ final class ServiceProvider extends PackageServiceProvider
 
         if ($channels !== []) {
             $stopwatch->notifyUsing($channels);
+        }
+
+        if (is_numeric($config['notify_threshold'] ?? null)) {
+            $stopwatch->notifyIfSlowerThan((int) $config['notify_threshold']);
         }
 
         return $stopwatch;

@@ -8,20 +8,29 @@ use Symfony\Component\HttpFoundation\Response;
 
 final readonly class StopwatchMiddleware
 {
+    private const string AUTOSTART = 'autostart';
+
     public function __construct(
         private Stopwatch $stopwatch,
     ) {}
 
-    public function handle(Request $request, Closure $next): Response
+    public static function autoStart(): string
     {
-        if ($this->stopwatch->enabled()) {
+        return self::class . ':' . self::AUTOSTART;
+    }
+
+    public function handle(Request $request, Closure $next, string ...$options): Response
+    {
+        $autoStart = in_array(self::AUTOSTART, $options, true);
+
+        if ($autoStart && $this->stopwatch->enabled() && ! $this->stopwatch->started()) {
             $this->stopwatch->start();
         }
 
         /** @var Response $response */
         $response = $next($request);
 
-        if ($this->stopwatch->enabled()) {
+        if ($this->stopwatch->enabled() && $this->stopwatch->started()) {
             $this->stopwatch->finish();
             $response->headers->set('Server-Timing', $this->stopwatch->toServerTiming());
         }

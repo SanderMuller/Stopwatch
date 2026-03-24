@@ -31,23 +31,23 @@ final readonly class StopwatchCheckpoint implements Arrayable
         public CarbonImmutable $time,
         public ?int            $queryCount = null,
         public ?float          $queryTimeMs = null,
-        public ?string         $memoryUsage = null,
-        public ?string         $memoryDelta = null,
-        public ?string         $memoryPeak = null,
+        public ?int            $memoryUsage = null,
+        public ?int            $memoryDelta = null,
+        public ?int            $memoryPeak = null,
     ) {
         $this->timeSinceLastCheckpoint = CarbonInterval::milliseconds($timeSinceLastCheckpointMs)->cascade();
         $this->timeSinceStopwatchStart = CarbonInterval::milliseconds($timeSinceStopwatchStartMs)->cascade();
 
         $this->timeSinceLastCheckpointFormatted = round($timeSinceLastCheckpointMs, 1) . 'ms';
 
-        $this->totalTimeElapsedFormatted = round($timeSinceStopwatchStartMs) . 'ms';
+        $this->totalTimeElapsedFormatted = round($timeSinceStopwatchStartMs, 1) . 'ms';
     }
 
-    public function render(Stopwatch $stopWatch, int $slowThreshold): string
+    public function render(float $totalMs, int $slowThreshold): string
     {
         $runDurationMs = $this->timeSinceLastCheckpoint->totalMilliseconds;
 
-        $factorRunDurationForThisCheckpoint = $runDurationMs / $stopWatch->totalRunDuration()->totalMilliseconds;
+        $factorRunDurationForThisCheckpoint = $totalMs > 0 ? $runDurationMs / $totalMs : 0;
         $percentageRunDurationForThisCheckpoint = round($factorRunDurationForThisCheckpoint * 100);
 
         if ($runDurationMs < $slowThreshold) {
@@ -63,10 +63,12 @@ final readonly class StopwatchCheckpoint implements Arrayable
             };
         }
 
+        $escapedLabel = htmlspecialchars($this->label, ENT_QUOTES | ENT_SUBSTITUTE);
+
         return <<<HTML
             <div style="display: flex; justify-content: space-between; border-top: 1px solid rgb(243 244 246); padding: 12px 15px;">
                 <div style="display: flex; flex-direction: column; line-height: 1.2;">
-                    <label>{$this->label}</label>
+                    <label>{$escapedLabel}</label>
 
                     <span style="font-size: 80%; color: #aaa;">{$percentageRunDurationForThisCheckpoint}%</span>
 
@@ -75,7 +77,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
 
                 <div style="display: flex; align-items: flex-end; flex-direction: column; line-height: 1.05; cursor: default; padding-left: 12px;">
                     <span style="font-weight: bold; padding: 2px 3px; background-color: {$bgColor};"
-                          title="Execution time for '{$this->label}' (since previous checkpoint)">
+                          title="Execution time for '{$escapedLabel}' (since previous checkpoint)">
                         {$this->timeSinceLastCheckpointFormatted}
                     </span>
 
@@ -107,7 +109,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
         }
 
         if ($this->memoryDelta !== null) {
-            $parts[] = $this->memoryDelta;
+            $parts[] = self::formatMemoryDelta($this->memoryDelta);
         }
 
         $suffix = $parts !== [] ? ' (' . implode(', ', $parts) . ')' : '';
@@ -137,15 +139,19 @@ final readonly class StopwatchCheckpoint implements Arrayable
             return '';
         }
 
+        $usage = self::formatBytes($this->memoryUsage ?? 0);
+        $delta = self::formatMemoryDelta($this->memoryDelta);
+        $peak = self::formatBytes($this->memoryPeak ?? 0);
+
         return <<<HTML
             <span style="font-size: 80%; padding: 2px 3px; color: #6b7280; cursor: default;"
-                  title="Usage: {$this->memoryUsage} | Delta: {$this->memoryDelta} | Peak: {$this->memoryPeak}">
-                {$this->memoryDelta}
+                  title="Usage: {$usage} | Delta: {$delta} | Peak: {$peak}">
+                {$delta}
             </span>
         HTML;
     }
 
-    private static function formatMetadataValue(mixed $value): string
+    public static function formatMetadataValue(mixed $value): string
     {
         if (! is_scalar($value) && ! $value instanceof Stringable) {
             return 'non-scalar value (' . gettype($value) . ')';
@@ -168,7 +174,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
         }
 
         $contents = collect($this->metadata)
-            ->implode(static fn (mixed $value, string|int $key): string => '<strong>' . $key . ':</strong> ' . self::formatMetadataValue($value) . '<br/>');
+            ->implode(static fn (mixed $value, string|int $key): string => '<strong>' . htmlspecialchars((string) $key, ENT_QUOTES | ENT_SUBSTITUTE) . ':</strong> ' . htmlspecialchars(self::formatMetadataValue($value), ENT_QUOTES | ENT_SUBSTITUTE) . '<br/>');
 
         return <<<HTML
             <div style="padding: 5px 10px; margin: 5px 0 0; background-color: #fcfcfc; border: 1px solid rgb(243 244 246); border-radius: 5px; line-height: 1.2;">
@@ -188,9 +194,9 @@ final readonly class StopwatchCheckpoint implements Arrayable
      *     timeSinceLastCheckpointFormatted: string,
      *     queryCount: int|null,
      *     queryTimeMs: float|null,
-     *     memoryUsage: string|null,
-     *     memoryDelta: string|null,
-     *     memoryPeak: string|null,
+     *     memoryUsage: int|null,
+     *     memoryDelta: int|null,
+     *     memoryPeak: int|null,
      * }
      */
     public function toArray(): array
@@ -209,5 +215,21 @@ final readonly class StopwatchCheckpoint implements Arrayable
             'memoryDelta' => $this->memoryDelta,
             'memoryPeak' => $this->memoryPeak,
         ];
+    }
+
+    public static function formatBytes(int $bytes): string
+    {
+        $absBytes = abs($bytes);
+
+        return match (true) {
+            $absBytes >= 1048576 => round($bytes / 1048576, 1) . 'MB',
+            $absBytes >= 1024 => round($bytes / 1024, 1) . 'KB',
+            default => $bytes . 'B',
+        };
+    }
+
+    public static function formatMemoryDelta(int $bytes): string
+    {
+        return ($bytes >= 0 ? '+' : '') . self::formatBytes($bytes);
     }
 }

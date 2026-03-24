@@ -61,7 +61,7 @@ final class StopwatchTest extends TestCase
         self::assertCount(2, $array['checkpoints']);
     }
 
-    public function test_to_array_contains_flat_checkpoints_and_grouped_groups(): void
+    public function test_to_array_contains_flat_checkpoint_list(): void
     {
         $stopwatch = Stopwatch::new(clock: new FakeClock());
         $stopwatch->start();
@@ -78,7 +78,7 @@ final class StopwatchTest extends TestCase
         self::assertArrayHasKey('timeSinceLastCheckpointMs', $data['checkpoints'][0]);
     }
 
-    public function test_group_aliases_do_not_break_group_api(): void
+    public function test_multiple_checkpoints_are_listed_correctly(): void
     {
         $stopwatch = Stopwatch::new(clock: new FakeClock());
         $stopwatch->start();
@@ -126,6 +126,17 @@ final class StopwatchTest extends TestCase
         self::assertStringContainsString('Total', $out);
         // highlighting color
         self::assertStringContainsString('rgba(255, 25, 25, 0.7)', $out);
+    }
+
+    public function test_render_html_handles_zero_duration_without_division_by_zero(): void
+    {
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
+        $stopwatch->checkpoint('Zero');
+
+        $out = (string) $stopwatch->render();
+        self::assertStringContainsString('Zero', $out);
+        self::assertStringContainsString('0%', $out);
     }
 
     public function test_last_checkpoint_formatted_contains_brackets_and_label(): void
@@ -319,9 +330,9 @@ final class StopwatchTest extends TestCase
 
         $data = $stopwatch->toArray();
 
-        self::assertNotNull($data['checkpoints'][0]['memoryUsage']);
-        self::assertNotNull($data['checkpoints'][0]['memoryDelta']);
-        self::assertNotNull($data['checkpoints'][0]['memoryPeak']);
+        self::assertIsInt($data['checkpoints'][0]['memoryUsage']);
+        self::assertIsInt($data['checkpoints'][0]['memoryDelta']);
+        self::assertIsInt($data['checkpoints'][0]['memoryPeak']);
 
         unset($dummy);
     }
@@ -442,7 +453,7 @@ final class StopwatchTest extends TestCase
         self::assertStringContainsString('desc="Label with \\"quotes\\" and \\\\backslash"', $header);
     }
 
-    public function test_middleware_sets_server_timing_header(): void
+    public function test_middleware_sets_server_timing_header_when_started_by_user(): void
     {
         $this->app->make('router')
             ->middleware(StopwatchMiddleware::class)
@@ -459,6 +470,37 @@ final class StopwatchTest extends TestCase
         self::assertNotNull($header);
         self::assertStringContainsString('Controller;dur=', $header);
         self::assertStringContainsString('total;dur=', $header);
+    }
+
+    public function test_middleware_auto_starts_when_configured(): void
+    {
+        $this->app->make('router')
+            ->middleware(StopwatchMiddleware::autoStart())
+            ->get('/test-autostart', static function (): string {
+                stopwatch()->checkpoint('Controller');
+
+                return 'ok';
+            });
+
+        $response = $this->get('/test-autostart');
+
+        $response->assertOk();
+        $header = $response->headers->get('Server-Timing');
+        self::assertNotNull($header);
+        self::assertStringContainsString('Controller;dur=', $header);
+        self::assertStringContainsString('total;dur=', $header);
+    }
+
+    public function test_middleware_skips_header_when_not_started(): void
+    {
+        $this->app->make('router')
+            ->middleware(StopwatchMiddleware::class)
+            ->get('/test-not-started', static fn (): string => 'ok');
+
+        $response = $this->get('/test-not-started');
+
+        $response->assertOk();
+        self::assertNull($response->headers->get('Server-Timing'));
     }
 
     public function test_middleware_skips_header_when_disabled(): void

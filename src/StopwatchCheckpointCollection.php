@@ -23,9 +23,9 @@ final class StopwatchCheckpointCollection extends Collection
         CarbonImmutable $time,
         ?int            $queryCount = null,
         ?float          $queryTimeMs = null,
-        ?string         $memoryUsage = null,
-        ?string         $memoryDelta = null,
-        ?string         $memoryPeak = null,
+        ?int            $memoryUsage = null,
+        ?int            $memoryDelta = null,
+        ?int            $memoryPeak = null,
     ): self {
         return $this->add(
             new StopwatchCheckpoint(
@@ -43,10 +43,10 @@ final class StopwatchCheckpointCollection extends Collection
         );
     }
 
-    public function render(Stopwatch $stopWatch, int $slowThreshold): string
+    public function render(float $totalMs, int $slowThreshold): string
     {
         return $this->implode(
-            static fn (StopwatchCheckpoint $stopwatchCheckpoint): string => $stopwatchCheckpoint->render($stopWatch, $slowThreshold),
+            static fn (StopwatchCheckpoint $stopwatchCheckpoint): string => $stopwatchCheckpoint->render($totalMs, $slowThreshold),
         );
     }
 

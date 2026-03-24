@@ -42,6 +42,8 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     private bool $trackingQueries = false;
 
+    private bool $queryListenerRegistered = false;
+
     private int $queryCount = 0;
 
     private float $queryDurationMs = 0;
@@ -122,6 +124,11 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         }
 
         return $this;
+    }
+
+    public function startTime(): ?CarbonImmutable
+    {
+        return $this->startTime;
     }
 
     public function started(): bool
@@ -250,7 +257,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function withQueryTracking(): self
     {
-        if (! $this->enabled || $this->trackingQueries) {
+        if (! $this->enabled) {
             return $this;
         }
 
@@ -262,14 +269,18 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->queryCount = 0;
         $this->queryDurationMs = 0;
 
-        app(DatabaseManager::class)->connection()->listen(function (QueryExecuted $query): void {
-            if (! $this->trackingQueries || $this->ended()) {
-                return;
-            }
+        if (! $this->queryListenerRegistered) {
+            $this->queryListenerRegistered = true;
 
-            $this->queryCount++;
-            $this->queryDurationMs += $query->time;
-        });
+            app(DatabaseManager::class)->connection()->listen(function (QueryExecuted $query): void {
+                if (! $this->enabled || ! $this->trackingQueries || $this->ended()) {
+                    return;
+                }
+
+                $this->queryCount++;
+                $this->queryDurationMs += $query->time;
+            });
+        }
 
         return $this;
     }
@@ -287,7 +298,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     }
 
     /**
-     * @return array{memory_usage: string, memory_delta: string, memory_peak: string}
+     * @return array{memory_usage: int, memory_delta: int, memory_peak: int}
      */
     private function collectMemoryMetrics(): array
     {
@@ -296,21 +307,10 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->lastMemoryUsage = $currentMemory;
 
         return [
-            'memory_usage' => $this->formatBytes($currentMemory),
-            'memory_delta' => ($delta >= 0 ? '+' : '') . $this->formatBytes($delta),
-            'memory_peak' => $this->formatBytes(memory_get_peak_usage()),
+            'memory_usage' => $currentMemory,
+            'memory_delta' => $delta,
+            'memory_peak' => memory_get_peak_usage(),
         ];
-    }
-
-    private function formatBytes(int $bytes): string
-    {
-        $absBytes = abs($bytes);
-
-        return match (true) {
-            $absBytes >= 1048576 => round($bytes / 1048576, 1) . 'MB',
-            $absBytes >= 1024 => round($bytes / 1024, 1) . 'KB',
-            default => $bytes . 'B',
-        };
     }
 
     /**
@@ -392,7 +392,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     public function finish(): self
     {
-        if (! $this->enabled || $this->endHrtime !== null) {
+        if (! $this->enabled || $this->startHrtime === null || $this->endHrtime !== null) {
             return $this;
         }
 
@@ -604,7 +604,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             </header>
 
             <div style="border-top: 1px solid rgb(243 244 246); border-bottom: 1px solid rgb(243 244 246); max-height: 60vh; overflow-y: auto;">
-                {$this->checkpoints->render($this, $this->slowCheckpointThresholdMs)}
+                {$this->checkpoints->render($this->totalRunDuration()->totalMilliseconds, $this->slowCheckpointThresholdMs)}
             </div>
 
             <footer style="padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-size: 16px;">

@@ -1,5 +1,4 @@
 <?php declare(strict_types=1);
-use SanderMuller\Stopwatch\Notifications\LogChannel;
 use SanderMuller\Stopwatch\StopwatchOutput;
 
 return [
@@ -90,9 +89,20 @@ return [
     |
     */
 
-    'notification_channels' => [
-        LogChannel::class,
-    ],
+    'notification_channels' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notification Threshold
+    |--------------------------------------------------------------------------
+    |
+    | When set, notifications will be dispatched via the configured
+    | notification channels if the total stopwatch duration exceeds
+    | this value (in milliseconds). Set to null to disable.
+    |
+    */
+
+    'notify_threshold' => env('STOPWATCH_NOTIFY_THRESHOLD'),
 
     /*
     |--------------------------------------------------------------------------

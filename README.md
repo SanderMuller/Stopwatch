@@ -1,6 +1,6 @@
 # Stopwatch for PHP & Laravel
 
-Easily profile parts of your application/code and measure the performance to expose the bottlenecks.
+Profile parts of your code and find the bottlenecks.
 
 **Requires PHP 8.3+**
 
@@ -22,14 +22,17 @@ php artisan vendor:publish --tag=stopwatch-config
 
 All settings can be configured via environment variables or the `config/stopwatch.php` file:
 
-| Setting | Env Variable | Default | Description |
-|---|---|---|---|
-| `enabled` | `STOPWATCH_ENABLED` | `true` | Disable to make all calls no-ops with near-zero overhead |
-| `output` | `STOPWATCH_OUTPUT` | `silent` | Default output mode (`silent`, `log`, `stderr`, `dump`) |
-| `log_level` | `STOPWATCH_LOG_LEVEL` | `debug` | Log level when output is `log` |
-| `slow_threshold` | `STOPWATCH_SLOW_THRESHOLD` | `50` | Highlight checkpoints slower than this (ms) |
-| `track_queries` | `STOPWATCH_TRACK_QUERIES` | `false` | Auto-track query count and duration per checkpoint |
-| `track_memory` | `STOPWATCH_TRACK_MEMORY` | `false` | Auto-track memory usage per checkpoint |
+| Setting            | Env Variable                 | Default  | Description                                              |
+|--------------------|------------------------------|----------|----------------------------------------------------------|
+| `enabled`          | `STOPWATCH_ENABLED`          | `true`   | Disable to make all calls no-ops with near-zero overhead |
+| `output`           | `STOPWATCH_OUTPUT`           | `silent` | Default output mode (`silent`, `log`, `stderr`, `dump`)  |
+| `log_level`        | `STOPWATCH_LOG_LEVEL`        | `debug`  | Log level when output is `log`                           |
+| `slow_threshold`   | `STOPWATCH_SLOW_THRESHOLD`   | `50`     | Highlight checkpoints slower than this (ms)              |
+| `track_queries`    | `STOPWATCH_TRACK_QUERIES`    | `false`  | Auto-track query count and duration per checkpoint       |
+| `track_memory`     | `STOPWATCH_TRACK_MEMORY`     | `false`  | Auto-track memory usage per checkpoint                   |
+| `notify_threshold` | `STOPWATCH_NOTIFY_THRESHOLD` | `null`   | Notify via channels if total duration exceeds this (ms)  |
+| `mail.to`          | `STOPWATCH_MAIL_TO`          | `null`   | Recipient address for `MailChannel` notifications        |
+| `mail.subject`     | `STOPWATCH_MAIL_SUBJECT`     | `null`   | Email subject (defaults to duration if not set)          |
 
 ## Usage
 
@@ -41,7 +44,7 @@ stopwatch()->checkpoint('Second checkpoint');
 stopwatch()->lap('Third checkpoint'); // alias for checkpoint()
 ```
 
-Calling `checkpoint()` auto-starts the stopwatch if it hasn't been started yet. You can also start it explicitly with `stopwatch()->start()`.
+Calling `checkpoint()` auto-starts the stopwatch if it hasn't been started yet. You can also start it explicitly with `stopwatch()->start()`. Note that `start()` resets any existing checkpoints, use it to begin a fresh measurement.
 
 You can attach metadata to any checkpoint:
 
@@ -64,12 +67,12 @@ stopwatch()->checkpoint('Second checkpoint'); // Automatically logged
 
 Available output modes:
 
-| Mode | Description |
-|------|-------------|
-| `StopwatchOutput::Silent` | No output (default) |
-| `StopwatchOutput::Log` | Send to Laravel log |
-| `StopwatchOutput::Stderr` | Write to stderr |
-| `StopwatchOutput::Dump` | Use Laravel's `dump()` |
+| Mode                      | Description            |
+|---------------------------|------------------------|
+| `StopwatchOutput::Silent` | No output (default)    |
+| `StopwatchOutput::Log`    | Send to Laravel log    |
+| `StopwatchOutput::Stderr` | Write to stderr        |
+| `StopwatchOutput::Dump`   | Use Laravel's `dump()` |
 
 You can override the output for a single checkpoint:
 
@@ -149,7 +152,7 @@ stopwatch()->toLog('Profile:', level: 'info');
 
 ### Conditional notifications
 
-Get notified when a request or operation exceeds a time threshold. Set up the threshold as a hook — notifications are dispatched automatically when the stopwatch finishes:
+Get notified when a request or operation exceeds a time threshold. Notifications are dispatched when the stopwatch finishes:
 
 ```php
 stopwatch()->notifyIfSlowerThan(500);
@@ -161,20 +164,28 @@ stopwatch()->checkpoint('Upload to S3');
 stopwatch()->finish(); // notifications dispatch here if total >= 500ms
 ```
 
-The threshold is also checked on implicit finishes (`render()`, `toArray()`, `toLog()`, etc.), and also accepts `CarbonInterval`:
+The threshold is also checked on implicit finishes (`render()`, `toArray()`, `toLog()`, `toStderr()`), and also accepts `CarbonInterval`:
 
 ```php
 stopwatch()->notifyIfSlowerThan(CarbonInterval::seconds(2));
 ```
 
-This pairs well with the middleware — set the threshold in a service provider, and every request that exceeds it will trigger a notification:
+The threshold and channels can be configured entirely via config/env:
+
+```env
+STOPWATCH_NOTIFY_THRESHOLD=500
+```
+
+This pairs well with the middleware. Every request that exceeds the threshold will trigger a notification automatically.
+
+Or set it programmatically in a service provider:
 
 ```php
 // AppServiceProvider::boot()
 stopwatch()->notifyIfSlowerThan(500);
 ```
 
-By default, notifications are sent to the log using the `LogChannel`. You can configure which channels are used in `config/stopwatch.php`:
+Configure which channels are used in `config/stopwatch.php`:
 
 ```php
 'notification_channels' => [
@@ -243,9 +254,7 @@ stopwatch()->notifyUsing([new SlackChannel()]);
 
 ### Render as HTML
 
-Render a neat HTML output showing the total execution time, each checkpoint and the time between each checkpoint.
-
-The checkpoints that took up most of the time will be highlighted.
+Render an HTML report with the total execution time, each checkpoint, and the time between them. Slow checkpoints are highlighted.
 
 ```php
 stopwatch()->checkpoint('First checkpoint');
@@ -263,11 +272,15 @@ Or use the Blade directive:
 
 ![rendered-stopwatch.png](rendered-stopwatch.png)
 
+### Laravel Debugbar
+
+If you have [barryvdh/laravel-debugbar](https://github.com/barryvdh/laravel-debugbar) installed, checkpoint timings automatically appear as a timeline tab in Debugbar with a duration badge.
+
 ### Server-Timing header
 
 Add a `Server-Timing` HTTP header to your responses so you can inspect checkpoint timings in the browser's DevTools Network tab.
 
-Use the middleware to automatically add it to all responses. The middleware starts and finishes the stopwatch for you:
+Register the middleware to automatically add the header whenever the stopwatch has been started:
 
 ```php
 // bootstrap/app.php
@@ -280,7 +293,15 @@ return Application::configure(basePath: dirname(__DIR__))
     // ...
 ```
 
-Or add the header manually:
+By default the middleware is passive, it only adds the `Server-Timing` header if the stopwatch was started somewhere in your code (e.g. via `stopwatch()->start()` or `stopwatch()->checkpoint()`). Requests where the stopwatch is never started will not have the header.
+
+To auto-start the stopwatch on every request, use `StopwatchMiddleware::autoStart()`:
+
+```php
+$middleware->append(StopwatchMiddleware::autoStart());
+```
+
+Or add the header manually without the middleware:
 
 ```php
 return response('OK')
@@ -305,6 +326,34 @@ stopwatch()->stop();
 
 You can get the total duration as a string with `stopwatch()->toString()` (e.g. `"116ms"`).
 
+### Enable / disable at runtime
+
+Enable or disable the stopwatch at runtime. When disabled, all calls become no-ops:
+
+```php
+stopwatch()->disable();
+
+stopwatch()->checkpoint('Skipped'); // no-op
+
+stopwatch()->enable();
+```
+
+### Serialization
+
+Convert the stopwatch data to an array or JSON:
+
+```php
+$data = stopwatch()->toArray();
+$json = stopwatch()->toJson();
+```
+
+### Debugging
+
+```php
+stopwatch()->dump(); // dump the stopwatch instance
+stopwatch()->dd();   // dump and die
+```
+
 ### Without Laravel
 
 You can use the stopwatch without the Laravel helper by creating instances directly:
@@ -315,3 +364,9 @@ $stopwatch->start();
 $stopwatch->checkpoint('Done');
 echo $stopwatch->toString();
 ```
+
+The `stopwatch()` helper is not available outside Laravel. Query tracking requires `illuminate/database` and a Laravel application. Config-based setup and notification channel resolution from class strings also require the Laravel container.
+
+## License
+
+MIT

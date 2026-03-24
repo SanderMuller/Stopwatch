@@ -25,7 +25,7 @@ final readonly class MailChannel implements StopwatchNotificationChannel
         /** @var string $subject */
         $subject = $this->subject ?? config('stopwatch.mail.subject') ?? "Stopwatch: {$stopwatch->totalRunDurationReadable()}";
 
-        Mail::html($stopwatch->toHtml(), function (Message $message) use ($to, $subject): void {
+        Mail::html($stopwatch->toHtml(), static function (Message $message) use ($to, $subject): void {
             $message->to($to)->subject($subject);
         });
     }
