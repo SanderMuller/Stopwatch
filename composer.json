@@ -40,7 +40,7 @@
         "phpstan/phpstan-strict-rules": "^2.0.6",
         "rector/rector": "^2.1.7",
         "rector/type-perfect": "^2.1",
-        "sandermuller/package-boost": "^0.2.0",
+        "sandermuller/package-boost": "^0.2.0 || ^0.9.0",
         "spaze/phpstan-disallowed-calls": "^4.6",
         "symplify/phpstan-extensions": "^12.0.1",
         "tomasvotruba/cognitive-complexity": "^1.0",
