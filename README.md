@@ -1,7 +1,8 @@
 # Stopwatch for PHP & Laravel
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/sandermuller/stopwatch.svg?style=flat-square)](https://packagist.org/packages/sandermuller/stopwatch)
-[![Tests](https://img.shields.io/github/actions/workflow/status/sandermuller/stopwatch/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/sandermuller/stopwatch/actions/workflows/run-tests.yml)
+[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/sandermuller/stopwatch/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/sandermuller/stopwatch/actions/workflows/run-tests.yml)
+[![GitHub PHPStan Action Status](https://img.shields.io/github/actions/workflow/status/sandermuller/stopwatch/phpstan.yml?branch=main&label=phpstan&style=flat-square)](https://github.com/sandermuller/stopwatch/actions?query=workflow%3Aphpstan+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/sandermuller/stopwatch.svg?style=flat-square)](https://packagist.org/packages/sandermuller/stopwatch)
 [![License](https://img.shields.io/github/license/sandermuller/stopwatch.svg?style=flat-square)](LICENSE)
 [![Laravel Compatibility](https://badge.laravel.cloud/badge/sandermuller/stopwatch?style=flat)](https://packagist.org/packages/sandermuller/stopwatch)
