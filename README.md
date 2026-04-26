@@ -279,6 +279,28 @@ Or use the Blade directive:
 
 ![rendered-stopwatch.png](rendered-stopwatch.png)
 
+The card is self-contained — all styles are inline so it drops into any host page (or email body) without picking up surrounding CSS. It includes:
+
+- **Smart duration formatting** that scales the unit so long profiles read clearly: `3.4ms`, `143ms`, `1.25s`, `1m 5s`. Available as a public helper too: `Stopwatch::formatDuration(1247)`.
+- **Slow severity tiers.** Checkpoints over the slow threshold get a tiered red signal — light (1×–2×), medium (2×–5×), heavy (5×+) — so you can tell a barely-slow row from a way-too-slow one at a glance.
+- **Overview bar** at the top with one colored segment per checkpoint, sized by share of total. Hovering a row cross-highlights its segment, and vice versa.
+- **Hover tooltip** per row with the full label, timestamp, delta vs cumulative, share, query and memory metrics.
+- **Footer totals** showing the cumulative query count, query time, and memory delta when the corresponding tracking is enabled.
+- **Copy as Markdown** button (clipboard icon, header) that copies a Markdown summary table to the clipboard — paste it into a chat with an AI assistant or a bug report. Available programmatically too: `stopwatch()->toMarkdown()`.
+- **Empty state** when no checkpoints have been recorded.
+
+#### Light + dark mode
+
+The card respects `prefers-color-scheme` automatically, and includes a built-in toggle button (sun/moon, in the header) that lets users override the theme. The choice persists in `localStorage` under the `sw-theme` key. Pages that disallow JavaScript fall back to the system preference and the toggle is hidden.
+
+#### Custom CSS overrides
+
+The card root is `.sw-stopwatch`. All themable surfaces are exposed as CSS variables (e.g. `--sw-bg`, `--sw-text`, `--sw-border`, `--sw-hover-bg`, `--sw-tip-bg`). To re-skin without forking the renderer, override these on `.sw-stopwatch` (or its `[data-theme="dark"]` variant) in your application stylesheet.
+
+#### Print
+
+A `@media print` rule strips shadows, drops the toggle button and tooltips, expands the card to full width, and disables the bar grow-in animation, so PDF exports of an HTML profile look clean.
+
 ### Laravel Debugbar
 
 If you have [barryvdh/laravel-debugbar](https://github.com/barryvdh/laravel-debugbar) installed, checkpoint timings automatically appear as a timeline tab in Debugbar with a duration badge.

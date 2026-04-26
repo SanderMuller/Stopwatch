@@ -1,3 +1,26 @@
+# Upgrading from Stopwatch 0.4.x to 0.5.x
+
+## HTML render redesigned
+
+`stopwatch()->render()` now emits a substantially redesigned card. Highlights:
+
+- Auto light/dark theming via `prefers-color-scheme`, with a manual toggle button (sun/moon) in the header that persists the user's choice in `localStorage` under the `sw-theme` key. Pages that disallow JavaScript fall back to system preference; the toggle button is hidden in that case.
+- Slow checkpoints get a tiered red signal (light / medium / heavy) based on how many multiples of the slow threshold they exceeded.
+- Compact duration formatter (`Stopwatch::formatDuration`) — `3.4ms`, `143ms`, `1.25s`, `1m 5s`.
+- Hovering a row cross-highlights its segment in the overview bar (and vice versa).
+- Empty state when no checkpoints have been recorded.
+- Cumulative totals (queries, query time, memory delta) shown in the footer when tracking is enabled.
+
+### Custom CSS overrides
+
+The card root is `.sw-stopwatch`. All themable surfaces are CSS variables (e.g. `--sw-bg`, `--sw-text`, `--sw-border`, `--sw-hover-bg`, `--sw-tip-bg`). To re-skin without forking the renderer, override these variables on `.sw-stopwatch` (or its `[data-theme="dark"]` variant) in your application's stylesheet.
+
+### Internal classes
+
+`StopwatchCheckpointHtmlRenderer`, `StopwatchIcons`, and the rendering helpers on `StopwatchCheckpointCollection` (`render`, `renderSegments`) are marked `@internal`. Their signatures and output may change between minor releases without notice. Consumers should keep using `Stopwatch::render()` / `toHtml()`.
+
+---
+
 # Upgrading from Stopwatch 0.3.x to 0.4.x
 
 ## Breaking changes

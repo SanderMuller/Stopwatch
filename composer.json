@@ -1,11 +1,19 @@
 {
     "name": "sandermuller/stopwatch",
-    "description": "Stopwatch to measure execution times (profile code) for Laravel and PHP projects",
+    "description": "Lightweight profiler for PHP and Laravel. Add checkpoints, measure closures, track queries and memory, and surface results as HTML, Server-Timing headers, log entries, or Debugbar timelines.",
     "keywords": [
         "PHP",
         "Laravel",
-        "Stopwatch",
-        "profiling"
+        "stopwatch",
+        "profiler",
+        "profiling",
+        "performance",
+        "benchmarking",
+        "checkpoints",
+        "query-tracking",
+        "memory-tracking",
+        "server-timing",
+        "debugbar"
     ],
     "homepage": "https://github.com/SanderMuller/Stopwatch",
     "license": "MIT",

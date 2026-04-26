@@ -25,3 +25,6 @@ yarn-error.log
 !.env.ci
 logs
 .phpactor.json
+
+# Release notes — picked up by CI on tag and promoted into CHANGELOG.md.
+RELEASE_NOTES*.md
