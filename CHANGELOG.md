@@ -10,6 +10,12 @@ the release workflow promotes it into this file as part of the tag flow.
 
 ## [Unreleased](https://github.com/SanderMuller/Stopwatch/compare/0.5.1...HEAD)
 
+## [0.5.1](https://github.com/SanderMuller/Stopwatch/compare/v0.5.0...0.5.1) - 2026-04-26
+
+### Added
+
+- **`profile-app` AI skill** shipped via `package-boost` to downstream Laravel projects. The skill activates when developers ask their AI assistant about slow requests, query counts, memory usage, or performance bottlenecks. It walks through choosing an entry point (middleware vs `measure()` vs manual checkpoints), placing checkpoints at decision boundaries, reading the rendered HTML output, and catching slow paths in production via `notifyIfSlowerThan()`. Auto-synced into `.claude/skills/` and `.github/skills/` so every consumer sees it without extra setup.
+
 ## [0.5.0](https://github.com/SanderMuller/Stopwatch/compare/v0.4.2...v0.5.0) - 2026-04-26
 
 ### Added
