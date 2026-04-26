@@ -5,8 +5,18 @@ All notable changes to this project are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > This file is auto-populated by CI on release. To document a change for an
-> upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
-> the release workflow promotes it into this file as part of the tag flow.
+upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
+the release workflow promotes it into this file as part of the tag flow.
+
+## [v0.5.2](https://github.com/SanderMuller/Stopwatch/compare/0.5.1...v0.5.2) - 2026-04-26
+
+### Internal
+
+- `CHANGELOG.md` cleanup: removed duplicate `[0.5.0]` and `[0.5.1]` sections that the auto-changelog workflow had appended at end-of-file (instead of prepending above the latest entry) when the file contained an empty `## [Unreleased]` heading. Removed the `[Unreleased]` heading itself so future releases insert at the correct position automatically.
+
+No functional or API changes. Safe to upgrade from 0.5.1 with no code changes required.
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/0.5.1...v0.5.2
 
 ## [0.5.1](https://github.com/SanderMuller/Stopwatch/compare/v0.5.0...0.5.1) - 2026-04-26
 
