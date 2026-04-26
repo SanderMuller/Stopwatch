@@ -5,10 +5,8 @@ All notable changes to this project are documented here. The format is based on
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > This file is auto-populated by CI on release. To document a change for an
-upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
-the release workflow promotes it into this file as part of the tag flow.
-
-## [Unreleased](https://github.com/SanderMuller/Stopwatch/compare/0.5.1...HEAD)
+> upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
+> the release workflow promotes it into this file as part of the tag flow.
 
 ## [0.5.1](https://github.com/SanderMuller/Stopwatch/compare/v0.5.0...0.5.1) - 2026-04-26
 
