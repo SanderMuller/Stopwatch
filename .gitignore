@@ -28,3 +28,4 @@ logs
 
 # Release notes — picked up by CI on tag and promoted into CHANGELOG.md.
 RELEASE_NOTES*.md
+.claude/scheduled_tasks.lock
