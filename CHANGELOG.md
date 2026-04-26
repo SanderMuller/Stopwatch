@@ -10,6 +10,35 @@ the release workflow promotes it into this file as part of the tag flow.
 
 ## [Unreleased](https://github.com/SanderMuller/Stopwatch/compare/v0.5.0...HEAD)
 
+## [0.5.0](https://github.com/SanderMuller/Stopwatch/compare/v0.4.2...v0.5.0) - 2026-04-26
+
+### Added
+
+- `Stopwatch::toMarkdown(): string` — Markdown summary table covering total duration, per-checkpoint deltas, and per-checkpoint query/memory metrics when tracking is enabled. The HTML render now ships with a clipboard button in the header that copies the same output, so you can paste a profile into a chat with an AI assistant or a bug report without screenshots.
+- `Stopwatch::formatDuration(float $ms): string` — compact human-readable duration formatter that scales the unit so long profiles stay readable: `3.4ms`, `143ms`, `1.25s`, `1m 5s`. Used internally by the HTML render and by `totalRunDurationReadable()` / `timeSinceLastCheckpointReadable()`, and exposed as a public helper.
+- `StopwatchCheckpointCollection::totals(): array` — aggregates `queries`, `queryMs`, and `memoryDelta` across all recorded checkpoints, with `hasQueries` / `hasMemory` flags so callers can distinguish "tracking on, zero results" from "tracking off".
+- HTML render: cumulative query/memory totals in the footer when the matching tracking is enabled.
+- HTML render: empty state when no checkpoints have been recorded.
+- HTML render: light/dark theme — respects `prefers-color-scheme` and exposes a header toggle button that persists the user's choice in `localStorage` under the `sw-theme` key. The toggle is hidden when JavaScript is unavailable (graceful degradation in email clients).
+- HTML render: keyboard-accessible rows and overview-bar segments (`tabindex`, `:focus-visible` parity with `:hover`, `aria-label` on segments and the slow pill).
+- HTML render: `@media print` styles strip interactive chrome and let the card flow naturally for PDF exports.
+- HTML render: themable surfaces are exposed as CSS variables on `.sw-stopwatch` (e.g. `--sw-bg`, `--sw-text`, `--sw-border`, `--sw-hover-bg`, `--sw-tip-bg`) for downstream re-skinning.
+- `role="region"` and `aria-label="Stopwatch profile"` on the card root.
+
+### Changed
+
+- HTML render redesigned. Each row now shows a colored bar + share %, a stacked metric column (delta / queries / memory), inline metadata chips, and a per-row hover/focus tooltip with timestamp, cumulative time, share, queries, and memory. Slow checkpoints get a tiered red signal (light / medium / heavy) based on how many multiples of the slow threshold they exceeded. Hovering a row cross-highlights its segment in the overview bar (and vice versa).
+- Long-duration display is now consistent at unit boundaries — `999.6ms` renders as `1s`, `59.996s` as `1m 0s`, instead of the impossible `1000ms` / `60s` produced by the previous formatter.
+
+### Internal
+
+- Extracted HTML rendering for a row into `StopwatchCheckpointHtmlRenderer` and the icon set into `StopwatchIcons`. Both classes plus `StopwatchCheckpointCollection::render()` / `renderSegments()` are marked `@internal` — their signatures and output may change between minor releases without a deprecation cycle.
+- Tests split across `StopwatchTest`, `StopwatchHtmlRenderTest`, `StopwatchTrackingTest`, and `StopwatchNotificationTest` to keep the per-file scope manageable.
+
+### Upgrade notes
+
+The existing `Stopwatch::render()` API is unchanged — you'll just see the new card. If you've been overriding the rendered HTML's CSS, see `UPGRADING.md` for the new class names and the CSS variables you can override.
+
 ## [0.4.2](https://github.com/SanderMuller/Stopwatch/compare/v0.4.1...v0.4.2) - 2026-03-24
 
 ### Added
