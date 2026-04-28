@@ -17,6 +17,11 @@ final class StopwatchIcons
         return self::wrap('<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>', $style);
     }
 
+    public static function globe(string $style = self::DEFAULT_STYLE): string
+    {
+        return self::wrap('<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>', $style);
+    }
+
     public static function memory(string $style = self::DEFAULT_STYLE): string
     {
         return self::wrap('<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>', $style);

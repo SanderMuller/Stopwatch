@@ -316,6 +316,149 @@ final class StopwatchHtmlRenderTest extends TestCase
         self::assertStringContainsString('rect x="4" y="4"', $out);
     }
 
+    public function test_render_includes_http_chip_and_tooltip_with_status_colors(): void
+    {
+        $col = StopwatchCheckpointCollection::empty();
+        $now = CarbonImmutable::now();
+        $col->addCheckpoint(
+            label: 'Load order',
+            metadata: null,
+            timeSinceLastCheckpointMs: 200.0,
+            timeSinceStopwatchStartMs: 200.0,
+            time: $now,
+            httpCount: 5,
+            httpTimeMs: 234.0,
+            httpCalls: [
+                // URLs reach the renderer pre-stripped of query strings (capture-side responsibility).
+                ['method' => 'GET', 'url' => 'https://api.example.com/users', 'status' => 200, 'durationMs' => 142.0],
+                ['method' => 'POST', 'url' => 'https://api.example.com/orders', 'status' => 404, 'durationMs' => 56.0],
+                ['method' => 'GET', 'url' => 'https://api.example.com/items', 'status' => 500, 'durationMs' => 36.0],
+                ['method' => 'GET', 'url' => 'https://api.example.com/extra', 'status' => 0, 'durationMs' => 0.0],
+                ['method' => 'GET', 'url' => 'https://api.example.com/extra2', 'status' => 200, 'durationMs' => 0.0],
+            ],
+        );
+
+        $out = StopwatchCheckpointHtmlRenderer::row($col->first(), 200.0, 50, '#000', 0);
+
+        // Chip in metric stack — icon prefix + count, no letter suffix
+        self::assertMatchesRegularExpression('/<svg[^>]*>.*?<\/svg>5 · /s', $out);
+        // Tip preview caps at 3 calls; expansion panel shows all 5 (including the ERR status).
+        self::assertStringContainsString('+2 more', $out);
+        self::assertStringContainsString('ERR', $out);
+        self::assertStringContainsString('class="sw-expansion"', $out);
+        self::assertStringContainsString('api.example.com/users', $out);
+        // Status colors: 2xx green, 4xx amber, 5xx red
+        self::assertStringContainsString('#22c55e', $out); // 200 → green
+        self::assertStringContainsString('#f59e0b', $out); // 404 → amber
+        self::assertStringContainsString('#ef4444', $out); // 500 → red
+    }
+
+    public function test_render_footer_shows_http_totals_with_tracking(): void
+    {
+        $col = StopwatchCheckpointCollection::empty();
+        $now = CarbonImmutable::now();
+        $col->addCheckpoint('A', null, 5.0, 5.0, $now, httpCount: 3, httpTimeMs: 120.0);
+
+        $totals = $col->totals();
+
+        self::assertTrue($totals['hasHttp']);
+        self::assertSame(3, $totals['httpCount']);
+        self::assertEqualsWithDelta(120.0, $totals['httpMs'], 0.001);
+    }
+
+    public function test_render_suppresses_query_and_http_chips_when_count_is_zero(): void
+    {
+        $col = StopwatchCheckpointCollection::empty();
+        $now = CarbonImmutable::now();
+        // Tracking enabled (queryCount/httpCount not null) but the row had no activity.
+        // Chips should not render — they'd just add visual noise on quiet rows.
+        $col->addCheckpoint(
+            label: 'Quiet row',
+            metadata: null,
+            timeSinceLastCheckpointMs: 5.0,
+            timeSinceStopwatchStartMs: 5.0,
+            time: $now,
+            queryCount: 0,
+            queryTimeMs: 0.0,
+            httpCount: 0,
+            httpTimeMs: 0.0,
+            httpCalls: [],
+            queryCalls: [],
+        );
+
+        $out = StopwatchCheckpointHtmlRenderer::row($col->first(), 5.0, 50, '#000', 0);
+
+        // No chip, no tip detail line for either tracker on this row.
+        self::assertStringNotContainsString('0q', $out);
+        self::assertStringNotContainsString('0h', $out);
+        self::assertStringNotContainsString('queries </span>', $out);
+        self::assertStringNotContainsString('calls </span>', $out);
+    }
+
+    public function test_render_expansion_panel_includes_full_label_metadata_queries_http_memory(): void
+    {
+        $col = StopwatchCheckpointCollection::empty();
+        $now = CarbonImmutable::now();
+        $col->addCheckpoint(
+            label: 'A really long label that gets truncated in the row but should appear in full inside the expansion panel',
+            metadata: ['order_id' => 'ORD-123', 'currency' => 'EUR'],
+            timeSinceLastCheckpointMs: 320.0,
+            timeSinceStopwatchStartMs: 320.0,
+            time: $now,
+            queryCount: 2,
+            queryTimeMs: 5.5,
+            memoryUsage: 12_582_912,
+            memoryDelta: 1_048_576,
+            memoryPeak: 16_777_216,
+            httpCount: 1,
+            httpTimeMs: 142.0,
+            httpCalls: [
+                ['method' => 'GET', 'url' => 'https://api.example.com/users', 'status' => 200, 'durationMs' => 142.0],
+            ],
+            queryCalls: [
+                ['sql' => 'SELECT * FROM users WHERE id = ?', 'bindings' => [42], 'durationMs' => 3.0],
+                ['sql' => 'SELECT * FROM orders WHERE user_id = ?', 'bindings' => [42], 'durationMs' => 2.5],
+            ],
+        );
+
+        $out = StopwatchCheckpointHtmlRenderer::row($col->first(), 320.0, 50, '#000', 0);
+
+        self::assertStringContainsString('class="sw-expansion"', $out);
+        self::assertStringContainsString('display:none', $out); // hidden by default
+        self::assertStringContainsString('role="button"', $out);
+        self::assertStringContainsString('aria-expanded="false"', $out);
+
+        // Full label appears in the panel even though row truncates with ellipsis
+        self::assertStringContainsString('A really long label that gets truncated', $out);
+
+        // Metadata, memory, queries (with SQL + bindings), HTTP all rendered in the panel
+        self::assertStringContainsString('order_id', $out);
+        self::assertStringContainsString('ORD-123', $out);
+        self::assertStringContainsString('SELECT * FROM users WHERE id = ?', $out);
+        self::assertStringContainsString('[42]', $out);
+        self::assertStringContainsString('api.example.com/users', $out);
+        self::assertStringContainsString('×', $out); // slow factor (320ms / 50ms threshold = 6.4×)
+        self::assertStringContainsString('peak', $out);
+    }
+
+    public function test_to_markdown_includes_http_column_when_tracked(): void
+    {
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock)->withHttpTracking();
+        $stopwatch->start();
+        $clock->advance(50);
+        // Manually inject an HTTP call by going through the recorded path — the test runs
+        // outside a real HTTP context, so synthesize a checkpoint with explicit http data
+        // via the collection directly to verify the markdown column renders.
+        $stopwatch->checkpoint('Plain'); // baseline so totals() runs through tracking branch
+
+        $md = $stopwatch->toMarkdown();
+        // With tracking enabled, the summary line should mention HTTP even when count is 0
+        self::assertStringContainsString('**HTTP calls (total):**', $md);
+        // And the table should have an HTTP column header
+        self::assertStringContainsString('| HTTP |', $md);
+    }
+
     public function test_render_html_includes_theme_toggle_button(): void
     {
         $stopwatch = Stopwatch::new(clock: new FakeClock());

@@ -26,7 +26,7 @@ final class StopwatchCheckpointHtmlRenderer
         $label = e($checkpoint->label);
         $deltaFmt = Stopwatch::formatDuration($delta);
 
-        ['cls' => $slowClass, 'msColor' => $msColor, 'msWeight' => $msWeight, 'shareColor' => $shareColor, 'badge' => $slowBadge, 'stripe' => $slowStripe, 'hoverBg' => $slowHoverBg] = self::slowStyling($delta, $slowThreshold);
+        ['cls' => $slowClass, 'msColor' => $msColor, 'msWeight' => $msWeight, 'shareColor' => $shareColor, 'badge' => $slowBadge, 'stripe' => $slowStripe, 'hoverBg' => $slowHoverBg] = StopwatchSlowStyling::resolve($delta, $slowThreshold);
 
         $startMarker = $index === 0
             ? ' <span title="Time elapsed before the first checkpoint" style="font-size:9px;font-style:italic;color:var(--sw-text-muted,#94a3b8);flex-shrink:0;">since start</span>'
@@ -35,9 +35,10 @@ final class StopwatchCheckpointHtmlRenderer
         $metricStack = self::metricStack($checkpoint, $deltaFmt, $msColor, $msWeight, $slowClass !== '');
         $metaBlock = self::metadataBlock($checkpoint);
         $tip = self::tip($checkpoint, $deltaFmt, $cum, $shareLabel);
+        $expansion = StopwatchExpansionRenderer::panel($checkpoint, $totalMs, $slowThreshold);
 
         return <<<HTML
-            <div class="sw-row{$slowClass}" tabindex="0" style="--sw-bar:{$color};--sw-stripe:{$slowStripe};--sw-slow-bg:{$slowHoverBg};position:relative;padding:11px 18px 12px;">
+            <div class="sw-row{$slowClass}" tabindex="0" role="button" aria-expanded="false" style="--sw-bar:{$color};--sw-stripe:{$slowStripe};--sw-slow-bg:{$slowHoverBg};position:relative;padding:11px 18px 12px;">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;">
                 <div style="min-width:0;flex:1;display:flex;align-items:flex-start;gap:9px;">
                   <span class="sw-dot" style="width:9px;height:9px;border-radius:2.5px;background:{$color};flex-shrink:0;margin-top:5px;"></span>
@@ -60,6 +61,7 @@ final class StopwatchCheckpointHtmlRenderer
                 </div>
               </div>
               {$tip}
+              {$expansion}
             </div>
             HTML;
     }
@@ -73,50 +75,7 @@ final class StopwatchCheckpointHtmlRenderer
 
     public static function slowMarkColor(float $delta, int $slowThreshold): string
     {
-        return self::slowPalette($delta / max(1, $slowThreshold))['stripe'];
-    }
-
-    /**
-     * Slow severity intensifies the red tone with how many multiples of the
-     * threshold the checkpoint took. Just-over-threshold reads softly; way-over
-     * reads punchy.
-     *
-     * @return array{cls: string, msColor: string, msWeight: string, shareColor: string, badge: string, stripe: string, hoverBg: string}
-     */
-    private static function slowStyling(float $delta, int $slowThreshold): array
-    {
-        if ($delta < $slowThreshold) {
-            return ['cls' => '', 'msColor' => 'var(--sw-text,#0f172a)', 'msWeight' => '600', 'shareColor' => 'var(--sw-text-muted,#94a3b8)', 'badge' => '', 'stripe' => '', 'hoverBg' => ''];
-        }
-
-        $palette = self::slowPalette($delta / max(1, $slowThreshold));
-
-        return [
-            'cls' => ' sw-slow',
-            'msColor' => $palette['ms'],
-            'msWeight' => '700',
-            'shareColor' => $palette['ms'],
-            'badge' => ' <span aria-label="slower than threshold" style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:' . $palette['pill'] . ';background:transparent;border:1px solid ' . $palette['pill'] . ';padding:1px 6px;border-radius:999px;vertical-align:1px;flex-shrink:0;">slow</span>',
-            'stripe' => $palette['stripe'],
-            'hoverBg' => $palette['hoverBg'],
-        ];
-    }
-
-    /**
-     * @return array{ms: string, pill: string, stripe: string, hoverBg: string}
-     */
-    private static function slowPalette(float $factor): array
-    {
-        // light: 1×–2×, medium: 2×–5×, heavy: 5×+
-        if ($factor >= 5) {
-            return ['ms' => '#b91c1c', 'pill' => '#dc2626', 'stripe' => '#dc2626', 'hoverBg' => '#fecaca'];
-        }
-
-        if ($factor >= 2) {
-            return ['ms' => '#dc2626', 'pill' => '#ef4444', 'stripe' => '#ef4444', 'hoverBg' => '#fee2e2'];
-        }
-
-        return ['ms' => '#ef4444', 'pill' => '#f87171', 'stripe' => '#fca5a5', 'hoverBg' => '#fef2f2'];
+        return StopwatchSlowStyling::markColor($delta, $slowThreshold);
     }
 
     private static function metricStack(StopwatchCheckpoint $checkpoint, string $deltaFmt, string $msColor, string $msWeight, bool $isSlow): string
@@ -125,21 +84,26 @@ final class StopwatchCheckpointHtmlRenderer
             '<div style="font-weight:' . $msWeight . ';color:' . $msColor . ';font-variant-numeric:tabular-nums;font-size:14px;line-height:1.15;">' . $deltaFmt . '</div>',
         ];
 
-        if ($checkpoint->queryCount !== null) {
-            $queryFmt = Stopwatch::formatDuration($checkpoint->queryTimeMs ?? 0);
-            $lines[] = '<div style="font-size:10px;color:var(--sw-query-color,#7c3aed);font-variant-numeric:tabular-nums;margin-top:3px;line-height:1.15;">'
-                . $checkpoint->queryCount . 'q · ' . $queryFmt
-                . '</div>';
-        }
-
-        if ($checkpoint->memoryDelta !== null) {
-            $memColor = self::memoryColor($checkpoint->memoryDelta, $isSlow);
-            $lines[] = '<div style="font-size:10px;color:' . $memColor . ';font-variant-numeric:tabular-nums;margin-top:3px;line-height:1.15;">'
-                . e(StopwatchCheckpoint::formatMemoryDelta($checkpoint->memoryDelta))
-                . '</div>';
-        }
+        // Each renderer suppresses its own chip when the count is zero — keeps "tracking on but
+        // nothing happened on this row" rows clean. Footer totals still show cumulative across all rows.
+        $lines[] = StopwatchQueryRenderer::chip($checkpoint);
+        $lines[] = StopwatchHttpRenderer::chip($checkpoint);
+        $lines[] = self::memoryChip($checkpoint, $isSlow);
 
         return '<div style="text-align:right;min-width:54px;">' . implode('', $lines) . '</div>';
+    }
+
+    private static function memoryChip(StopwatchCheckpoint $checkpoint, bool $isSlow): string
+    {
+        if ($checkpoint->memoryDelta === null) {
+            return '';
+        }
+
+        $color = self::memoryColor($checkpoint->memoryDelta, $isSlow);
+
+        return '<div style="font-size:10px;color:' . $color . ';font-variant-numeric:tabular-nums;margin-top:3px;line-height:1.15;">'
+            . e(StopwatchCheckpoint::formatMemoryDelta($checkpoint->memoryDelta))
+            . '</div>';
     }
 
     private static function memoryColor(int $delta, bool $isSlow): string
@@ -197,8 +161,12 @@ final class StopwatchCheckpointHtmlRenderer
             . '</div>';
 
         $detailLines = [];
-        if ($checkpoint->queryCount !== null) {
+        if ($checkpoint->queryCount !== null && $checkpoint->queryCount > 0) {
             $detailLines[] = self::tipQueryLine($checkpoint);
+        }
+
+        if ($checkpoint->httpCount !== null && $checkpoint->httpCount > 0) {
+            $detailLines[] = StopwatchHttpRenderer::tipSection($checkpoint);
         }
 
         if ($checkpoint->memoryDelta !== null) {
@@ -243,7 +211,7 @@ final class StopwatchCheckpointHtmlRenderer
         );
     }
 
-    private static function tipLine(string $icon, string $value): string
+    public static function tipLine(string $icon, string $value): string
     {
         return '<div style="display:flex;align-items:center;gap:7px;line-height:1.5;">'
             . '<span style="color:var(--sw-tip-mute,#64748b);display:inline-flex;">' . $icon . '</span>'

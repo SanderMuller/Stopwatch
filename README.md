@@ -37,6 +37,7 @@ All settings can be configured via environment variables or the `config/stopwatc
 | `slow_threshold`   | `STOPWATCH_SLOW_THRESHOLD`   | `50`     | Highlight checkpoints slower than this (ms)              |
 | `track_queries`    | `STOPWATCH_TRACK_QUERIES`    | `false`  | Auto-track query count and duration per checkpoint       |
 | `track_memory`     | `STOPWATCH_TRACK_MEMORY`     | `false`  | Auto-track memory usage per checkpoint                   |
+| `track_http`       | `STOPWATCH_TRACK_HTTP`       | `false`  | Auto-track outbound `Http::` calls per checkpoint        |
 | `notify_threshold` | `STOPWATCH_NOTIFY_THRESHOLD` | `null`   | Notify via channels if total duration exceeds this (ms)  |
 | `mail.to`          | `STOPWATCH_MAIL_TO`          | `null`   | Recipient address for `MailChannel` notifications        |
 | `mail.subject`     | `STOPWATCH_MAIL_SUBJECT`     | `null`   | Email subject (defaults to duration if not set)          |
@@ -120,7 +121,7 @@ stopwatch()->checkpoint('Load orders');
 // Checkpoint includes: 1q / 1.5ms
 ```
 
-Can also be enabled via config (`STOPWATCH_TRACK_QUERIES=true`).
+Can also be enabled via config (`STOPWATCH_TRACK_QUERIES=true`). Up to 50 SQL statements + bindings + per-query duration are stored per checkpoint and shown when you click a row to expand its detail modal — handy when you need to inspect *which* query was slow, not just the count.
 
 ### Memory tracking
 
@@ -136,10 +137,37 @@ stopwatch()->checkpoint('Load data');
 
 In the HTML output, memory is shown as a compact delta badge with full details on hover (current usage, delta, peak). In plain-text output (`toStderr`, `toLog`), the delta is included inline. Can also be enabled via config (`STOPWATCH_TRACK_MEMORY=true`).
 
-Both tracking methods can be combined:
+### HTTP tracking
+
+Track outbound HTTP requests sent through Laravel's `Http::` facade between each checkpoint. Per-checkpoint count + total time appear as a chip; the hover tooltip shows the first three calls (method · URL · status · duration) with an `+N more` line if there were more, plus a footer total across the whole profile.
 
 ```php
-stopwatch()->withQueryTracking()->withMemoryTracking()->start();
+stopwatch()->withHttpTracking()->start();
+
+Http::get('https://api.example.com/users');
+Http::post('https://api.example.com/orders', $payload);
+stopwatch()->checkpoint('Sync order');
+// Checkpoint includes: 2h / 156ms
+```
+
+Status codes are color-coded in the tooltip (green 2xx, amber 4xx, red 5xx + connection failures). Up to 50 call detail rows are stored per checkpoint to bound memory; the count + total time still reflect every call beyond that. Can also be enabled via config (`STOPWATCH_TRACK_HTTP=true`).
+
+**Limitation:** only requests through Laravel's `Http::` facade are captured. Direct `new GuzzleHttp\Client` instances bypass Laravel's event dispatcher and won't be tracked — same limitation as Laravel Telescope. If you need direct-Guzzle tracking, wrap calls in `stopwatch()->measure()` manually.
+
+All tracking methods can be combined:
+
+```php
+stopwatch()->withQueryTracking()->withMemoryTracking()->withHttpTracking()->start();
+```
+
+Use `when()` / `unless()` to toggle parts of the chain conditionally without breaking the fluent flow:
+
+```php
+stopwatch()
+    ->withMemoryTracking()
+    ->when($trackQueries, fn ($sw) => $sw->withQueryTracking())
+    ->unless(app()->runningUnitTests(), fn ($sw) => $sw->withHttpTracking())
+    ->start();
 ```
 
 ### Write a full report
@@ -285,7 +313,8 @@ The card is self-contained — all styles are inline so it drops into any host p
 - **Slow severity tiers.** Checkpoints over the slow threshold get a tiered red signal — light (1×–2×), medium (2×–5×), heavy (5×+) — so you can tell a barely-slow row from a way-too-slow one at a glance.
 - **Overview bar** at the top with one colored segment per checkpoint, sized by share of total. Hovering a row cross-highlights its segment, and vice versa.
 - **Hover tooltip** per row with the full label, timestamp, delta vs cumulative, share, query and memory metrics.
-- **Footer totals** showing the cumulative query count, query time, and memory delta when the corresponding tracking is enabled.
+- **Click any row to expand** into a centered modal showing the full label, all metadata, memory current/delta/peak, every captured query (with SQL + bindings + per-query duration), and every captured HTTP call (method/URL/status/duration). Backdrop click, ESC, or × button closes; only one row open at a time.
+- **Footer totals** showing the cumulative query count, query time, HTTP count, HTTP time, and memory delta when the corresponding tracking is enabled.
 - **Copy as Markdown** button (clipboard icon, header) that copies a Markdown summary table to the clipboard — paste it into a chat with an AI assistant or a bug report. Available programmatically too: `stopwatch()->toMarkdown()`.
 - **Empty state** when no checkpoints have been recorded.
 

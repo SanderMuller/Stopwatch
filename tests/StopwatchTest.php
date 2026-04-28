@@ -295,4 +295,77 @@ final class StopwatchTest extends TestCase
         self::assertSame(100, $data['checkpoints'][1]['totalTimeElapsedMs']);
         self::assertSame(100, $data['totalRunDurationMs']);
     }
+
+    public function test_when_runs_callback_for_truthy_value_and_skips_for_falsy(): void
+    {
+        $stopwatch = Stopwatch::new();
+
+        $truthyCalls = 0;
+        $falsyCalls = 0;
+
+        $result = $stopwatch
+            ->when(true, function (Stopwatch $sw) use (&$truthyCalls, $stopwatch): void {
+                $truthyCalls++;
+                self::assertSame($stopwatch, $sw);
+            })
+            ->when(false, function () use (&$falsyCalls): void {
+                $falsyCalls++;
+            });
+
+        self::assertSame(1, $truthyCalls);
+        self::assertSame(0, $falsyCalls);
+        self::assertSame($stopwatch, $result);
+    }
+
+    public function test_when_invokes_default_callback_for_falsy_value(): void
+    {
+        $stopwatch = Stopwatch::new();
+
+        $primary = 0;
+        $default = 0;
+
+        $stopwatch->when(
+            value: false,
+            callback: function () use (&$primary): void {
+                $primary++;
+            },
+            default: function () use (&$default): void {
+                $default++;
+            },
+        );
+
+        self::assertSame(0, $primary);
+        self::assertSame(1, $default);
+    }
+
+    public function test_when_resolves_closure_value(): void
+    {
+        $stopwatch = Stopwatch::new();
+
+        $calls = 0;
+        $stopwatch->when(
+            fn (Stopwatch $sw): bool => $sw->enabled(),
+            function () use (&$calls): void {
+                $calls++;
+            },
+        );
+
+        self::assertSame(1, $calls);
+    }
+
+    public function test_unless_inverts_when(): void
+    {
+        $stopwatch = Stopwatch::new();
+
+        $calls = 0;
+        $stopwatch
+            ->unless(false, function () use (&$calls): void {
+                $calls++;
+            })
+            ->unless(true, function () use (&$calls): void {
+                $calls++;
+            });
+
+        self::assertSame(1, $calls);
+    }
 }

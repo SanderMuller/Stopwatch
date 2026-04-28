@@ -47,7 +47,7 @@ final class DebugbarCollector extends DataCollector implements Renderable
 
         $measures = [];
 
-        /** @var array{label: string, timeSinceLastCheckpointMs: int, timeSinceLastCheckpointFormatted: string, totalTimeElapsedMs: int, metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null} $checkpoint */
+        /** @var array{label: string, timeSinceLastCheckpointMs: int, timeSinceLastCheckpointFormatted: string, totalTimeElapsedMs: int, metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null, httpCount: int|null, httpTimeMs: float|null} $checkpoint */
         foreach ($data['checkpoints'] as $checkpoint) {
             $measures[] = $this->buildMeasure($checkpoint, $requestStart);
         }
@@ -77,7 +77,7 @@ final class DebugbarCollector extends DataCollector implements Renderable
     }
 
     /**
-     * @param array{label: string, timeSinceLastCheckpointMs: int, timeSinceLastCheckpointFormatted: string, totalTimeElapsedMs: int, metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null} $checkpoint
+     * @param array{label: string, timeSinceLastCheckpointMs: int, timeSinceLastCheckpointFormatted: string, totalTimeElapsedMs: int, metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null, httpCount: int|null, httpTimeMs: float|null} $checkpoint
      * @return array{label: string, start: float, relative_start: float, end: float, relative_end: float, duration: float, duration_str: string, params: array<string, mixed>, collector: null}
      */
     private function buildMeasure(array $checkpoint, float $requestStart): array
@@ -100,7 +100,7 @@ final class DebugbarCollector extends DataCollector implements Renderable
     }
 
     /**
-     * @param array{metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null} $checkpoint
+     * @param array{metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null, httpCount: int|null, httpTimeMs: float|null} $checkpoint
      * @return array<string, mixed>
      */
     private function buildParams(array $checkpoint): array
@@ -115,6 +115,10 @@ final class DebugbarCollector extends DataCollector implements Renderable
 
         if ($checkpoint['queryCount'] !== null) {
             $params['queries'] = "{$checkpoint['queryCount']}q / {$checkpoint['queryTimeMs']}ms";
+        }
+
+        if ($checkpoint['httpCount'] !== null) {
+            $params['http'] = "{$checkpoint['httpCount']}h / {$checkpoint['httpTimeMs']}ms";
         }
 
         if ($checkpoint['memoryDelta'] !== null) {

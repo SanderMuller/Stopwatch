@@ -83,6 +83,10 @@ final class ServiceProvider extends PackageServiceProvider
             $stopwatch->withMemoryTracking();
         }
 
+        if (($config['track_http'] ?? false) === true) {
+            $stopwatch->withHttpTracking();
+        }
+
         /** @var array<class-string<StopwatchNotificationChannel>> $channels */
         $channels = $config['notification_channels'] ?? [];
 

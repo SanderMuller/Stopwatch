@@ -23,6 +23,8 @@ final class StopwatchCheckpointCollection extends Collection
 
     /**
      * @param array<array-key, mixed>|null $metadata
+     * @param list<array{method: string, url: string, status: int, durationMs: float}>|null $httpCalls
+     * @param list<array{sql: string, bindings: array<array-key, mixed>, durationMs: float}>|null $queryCalls
      */
     public function addCheckpoint(
         string          $label,
@@ -35,6 +37,10 @@ final class StopwatchCheckpointCollection extends Collection
         ?int            $memoryUsage = null,
         ?int            $memoryDelta = null,
         ?int            $memoryPeak = null,
+        ?int            $httpCount = null,
+        ?float          $httpTimeMs = null,
+        ?array          $httpCalls = null,
+        ?array          $queryCalls = null,
     ): self {
         return $this->add(
             new StopwatchCheckpoint(
@@ -48,6 +54,10 @@ final class StopwatchCheckpointCollection extends Collection
                 memoryUsage: $memoryUsage,
                 memoryDelta: $memoryDelta,
                 memoryPeak: $memoryPeak,
+                httpCount: $httpCount,
+                httpTimeMs: $httpTimeMs,
+                httpCalls: $httpCalls,
+                queryCalls: $queryCalls,
             ),
         );
     }
@@ -118,15 +128,18 @@ final class StopwatchCheckpointCollection extends Collection
     }
 
     /**
-     * @return array{queries: int, queryMs: float, memoryDelta: int, hasQueries: bool, hasMemory: bool}
+     * @return array{queries: int, queryMs: float, memoryDelta: int, httpCount: int, httpMs: float, hasQueries: bool, hasMemory: bool, hasHttp: bool}
      */
     public function totals(): array
     {
         $queries = 0;
         $queryMs = 0.0;
         $memoryDelta = 0;
+        $httpCount = 0;
+        $httpMs = 0.0;
         $hasQueries = false;
         $hasMemory = false;
+        $hasHttp = false;
 
         foreach ($this->items as $item) {
             if ($item->queryCount !== null) {
@@ -139,14 +152,23 @@ final class StopwatchCheckpointCollection extends Collection
                 $hasMemory = true;
                 $memoryDelta += $item->memoryDelta;
             }
+
+            if ($item->httpCount !== null) {
+                $hasHttp = true;
+                $httpCount += $item->httpCount;
+                $httpMs += $item->httpTimeMs ?? 0.0;
+            }
         }
 
         return [
             'queries' => $queries,
             'queryMs' => $queryMs,
             'memoryDelta' => $memoryDelta,
+            'httpCount' => $httpCount,
+            'httpMs' => $httpMs,
             'hasQueries' => $hasQueries,
             'hasMemory' => $hasMemory,
+            'hasHttp' => $hasHttp,
         ];
     }
 }

@@ -1,6 +1,6 @@
 ---
 name: profile-app
-description: "Profile a slow request, command, or code path with sandermuller/stopwatch. Activate when the user mentions: slow request, slow endpoint, slow page, slow query, slow job, slow command, performance issue, profile this, why is this slow, where is the time going, optimize, bottleneck, latency, n+1, query count, memory usage, server-timing."
+description: "Profile a slow request, command, or code path with sandermuller/stopwatch. Activate when the user mentions: slow request, slow endpoint, slow page, slow query, slow job, slow command, slow API call, slow HTTP, performance issue, profile this, why is this slow, where is the time going, optimize, bottleneck, latency, n+1, query count, memory usage, http calls, outbound requests, server-timing."
 ---
 
 # Profile a slow code path
@@ -34,10 +34,10 @@ Do NOT activate for:
 The first call to `checkpoint()` auto-starts. For middleware-driven profiling there is nothing to wire — `StopwatchMiddleware::autoStart()` starts on every request.
 
 ```php
-stopwatch()->withQueryTracking()->withMemoryTracking()->start();
+stopwatch()->withQueryTracking()->withMemoryTracking()->withHttpTracking()->start();
 ```
 
-Enable `withQueryTracking()` whenever the suspect path touches the database — checkpoints will show query count + duration. Enable `withMemoryTracking()` when memory could be the issue (large collections, image processing). Both are off by default to keep overhead near zero.
+Enable `withQueryTracking()` whenever the suspect path touches the database — checkpoints will show query count + duration. Enable `withMemoryTracking()` when memory could be the issue (large collections, image processing). Enable `withHttpTracking()` when the path makes outbound API calls — checkpoints will show count + total time + per-call previews (method/URL/status). HTTP tracking only catches calls through Laravel's `Http::` facade; direct `new GuzzleHttp\Client` calls bypass it. All three are off by default to keep overhead near zero.
 
 ### 2. Place checkpoints at decision boundaries
 
@@ -92,6 +92,7 @@ stopwatch()->toArray();                               // structured data
 Profile → identify hot row → fix or break it down further → re-profile. Common patterns:
 
 - **One row dominates with high query count** → N+1; eager-load (`with(...)`), batch, or cache.
+- **One row dominates with high HTTP count** → outbound API in a loop; batch the upstream call, cache responses, or push the work to a queued job.
 - **Memory spike on one row** → streaming opportunity (`chunk`, `cursor`, `LazyCollection`).
 - **Many small rows are individually fast but add up** → consider parallelism (queued jobs, `Octane::concurrently`).
 - **One row is fast but its delta-since-last is huge** → the time is actually between checkpoints; add a checkpoint inside.
@@ -132,7 +133,7 @@ Implement `StopwatchNotificationChannel` for Slack, PagerDuty, etc.
 $result = stopwatch()->measure('Heavy work', fn () => doIt());
 
 // Multi-step
-stopwatch()->withQueryTracking()->start();
+stopwatch()->withQueryTracking()->withHttpTracking()->start();
 stopwatch()->checkpoint('Step 1');
 stopwatch()->checkpoint('Step 2', ['rows' => 42]);
 echo stopwatch()->render();

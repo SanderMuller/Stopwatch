@@ -79,6 +79,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Track HTTP Calls
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, outbound HTTP requests sent through Laravel's `Http::`
+    | facade will be captured per checkpoint (count + total time + per-call
+    | summaries). Direct Guzzle clients bypass this (same limitation as
+    | Telescope) — use the facade if you want them tracked.
+    |
+    */
+
+    'track_http' => (bool) env('STOPWATCH_TRACK_HTTP', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Notification Channels
     |--------------------------------------------------------------------------
     |

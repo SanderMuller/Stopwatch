@@ -82,8 +82,45 @@ final class StopwatchHtmlRenderer
                     // Pre-position every segment tooltip from live measurements so the very first
                     // hover already shows the arrow on the segment center.
                     for (var k = 0; k < segs.length; k++) window.__swPositionSegTip(segs[k]);
+                    var closeAll = function(){
+                        for (var k = 0; k < rows.length; k++) {
+                            rows[k].classList.remove('sw-expanded');
+                            rows[k].setAttribute('aria-expanded', 'false');
+                        }
+                    };
+                    var openOnly = function(target){
+                        closeAll();
+                        target.classList.add('sw-expanded');
+                        target.setAttribute('aria-expanded', 'true');
+                    };
                     for (var i = 0; i < rows.length; i++) {
                         (function(r, sg){
+                            r.addEventListener('click', function(e){
+                                // Close button + interactive children inside the modal shouldn't re-toggle.
+                                if (e.target.closest && e.target.closest('.sw-modal-close')) {
+                                    e.stopPropagation();
+                                    closeAll();
+                                    return;
+                                }
+                                // Clicking the modal card itself (not the backdrop) shouldn't close.
+                                if (r.classList.contains('sw-expanded') && e.target.closest && e.target.closest('.sw-modal-card')) {
+                                    return;
+                                }
+                                // Backdrop click on an open modal closes it; otherwise opens this row.
+                                if (r.classList.contains('sw-expanded')) {
+                                    closeAll();
+                                    return;
+                                }
+                                // Don't toggle if user is selecting text in another row.
+                                if (window.getSelection && String(window.getSelection())) return;
+                                openOnly(r);
+                            });
+                            r.addEventListener('keydown', function(e){
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    if (r.classList.contains('sw-expanded')) closeAll(); else openOnly(r);
+                                }
+                            });
                             if (!sg) return;
                             r.addEventListener('mouseenter', function(){ sg.classList.add('sw-active'); window.__swShowSegTip(sg); });
                             r.addEventListener('mouseleave', function(){ sg.classList.remove('sw-active'); window.__swHideSegTip(sg); });
@@ -93,6 +130,10 @@ final class StopwatchHtmlRenderer
                             sg.addEventListener('focusout', function(){ window.__swHideSegTip(sg); });
                         })(rows[i], segs[i]);
                     }
+                    // ESC closes any open modal regardless of focus location within the card.
+                    card.addEventListener('keydown', function(e){
+                        if (e.key === 'Escape') closeAll();
+                    });
                     var copyBtn = card.querySelector('.sw-copy');
                     if (copyBtn) {
                         copyBtn.style.display = '';
@@ -146,7 +187,12 @@ final class StopwatchHtmlRenderer
         . ' --sw-tip-bg: #f8fafc; --sw-tip-text: #475569; --sw-tip-label: #0f172a;'
         . ' --sw-tip-mute: #64748b; --sw-tip-divider: rgba(15,23,42,.08);'
         . ' --sw-mem-color: #64748b; --sw-mem-color-small: #475569;'
-        . ' --sw-query-color: #c4b5fd; --sw-active-ring: #141d33;';
+        . ' --sw-query-color: #c4b5fd; --sw-http-color: #7dd3fc; --sw-active-ring: #141d33;'
+        // Modal needs lift over the page bg in dark mode so the card reads as elevated; in light mode it stays white.
+        // --sw-modal-text mirrors the page's --sw-text but is set only on the root, so row-hover overrides
+        // (which re-pin --sw-text dark for slow-row pink-bg contrast) don't bleed into the modal.
+        . ' --sw-modal-bg: #1e293b; --sw-modal-border: #334155; --sw-modal-divider: #334155;'
+        . ' --sw-modal-text: #e2e8f0; --sw-modal-text-muted: #94a3b8;';
 
     private const string DARK_FILTER = 'filter: saturate(1.3) brightness(1.12);';
 
@@ -181,7 +227,7 @@ final class StopwatchHtmlRenderer
         $inlineScript = self::INLINE_SCRIPT;
 
         return <<<HTML
-        <div class="sw-stopwatch" role="region" aria-label="Stopwatch profile" data-sw-md="{$markdownB64}" style="max-width:460px;width:100%;background:var(--sw-bg,#fff);border:1px solid var(--sw-border,#f1f5f9);border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -8px rgba(15,23,42,.12);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--sw-text,#0f172a);font-size:14px;line-height:1.4;margin:15px 5px;">
+        <div class="sw-stopwatch" role="region" aria-label="Stopwatch profile" data-sw-md="{$markdownB64}" style="position:relative;max-width:460px;width:100%;background:var(--sw-bg,#fff);border:1px solid var(--sw-border,#f1f5f9);border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -8px rgba(15,23,42,.12);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--sw-text,#0f172a);font-size:14px;line-height:1.4;margin:15px 5px;">
             {$styleBlock}
             <header style="padding:16px 18px 14px;position:sticky;top:0;background:var(--sw-bg,#fff);z-index:5;border-radius:12px 12px 0 0;">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
@@ -229,7 +275,7 @@ final class StopwatchHtmlRenderer
     }
 
     /**
-     * @param array{queries: int, queryMs: float, memoryDelta: int, hasQueries: bool, hasMemory: bool} $totals
+     * @param array{queries: int, queryMs: float, memoryDelta: int, httpCount: int, httpMs: float, hasQueries: bool, hasMemory: bool, hasHttp: bool} $totals
      */
     private static function renderTotals(array $totals): string
     {
@@ -238,7 +284,14 @@ final class StopwatchHtmlRenderer
         if ($totals['hasQueries']) {
             $bits[] = '<span style="color:var(--sw-query-color,#7c3aed);display:inline-flex;align-items:center;gap:4px;">'
                 . StopwatchIcons::db()
-                . $totals['queries'] . 'q · ' . Stopwatch::formatDuration($totals['queryMs'])
+                . $totals['queries'] . ' · ' . Stopwatch::formatDuration($totals['queryMs'])
+                . '</span>';
+        }
+
+        if ($totals['hasHttp']) {
+            $bits[] = '<span style="color:var(--sw-http-color,#0ea5e9);display:inline-flex;align-items:center;gap:4px;">'
+                . StopwatchIcons::globe()
+                . $totals['httpCount'] . ' · ' . Stopwatch::formatDuration($totals['httpMs'])
                 . '</span>';
         }
 
@@ -283,7 +336,13 @@ final class StopwatchHtmlRenderer
                     --sw-mem-color: #94a3b8;
                     --sw-mem-color-small: #cbd5e1;
                     --sw-query-color: #7c3aed;
+                    --sw-http-color: #0ea5e9;
                     --sw-active-ring: #fff;
+                    --sw-modal-bg: #fff;
+                    --sw-modal-border: #e2e8f0;
+                    --sw-modal-divider: #f1f5f9;
+                    --sw-modal-text: #0f172a;
+                    --sw-modal-text-muted: #94a3b8;
                 }
                 @media (prefers-color-scheme: dark) {
                     .sw-stopwatch:not([data-theme="light"]) { {$darkVars} }
@@ -407,6 +466,47 @@ final class StopwatchHtmlRenderer
                     display: block !important;
                     opacity: 1; transform: translateY(0); transition-delay: 120ms;
                 }
+                /* Expansion modal: viewport-fixed so it can grow past the card's small bounds.
+                   Hidden via inline display:none for mail safety; only revealed when JS attaches
+                   and the row carries the .sw-expanded class. */
+                .sw-stopwatch.sw-js .sw-row { cursor: pointer; }
+                .sw-stopwatch .sw-row.sw-expanded .sw-expansion {
+                    display: flex !important;
+                    position: fixed;
+                    inset: 0;
+                    z-index: 9999;
+                    background: rgba(0,0,0,.65);
+                    align-items: center;
+                    justify-content: center;
+                    padding: 24px;
+                    animation: sw-modal-in 140ms ease-out;
+                }
+                .sw-stopwatch .sw-row.sw-expanded .sw-modal-card {
+                    width: min(460px, 100%);
+                    max-height: 85vh;
+                    overflow-y: auto;
+                    cursor: default;
+                    /* Override the inline bg/border (which use --sw-bg / --sw-border) so the modal
+                       lifts above the page surface in dark mode, where bg+border match the page. */
+                    background: var(--sw-modal-bg, #fff) !important;
+                    border-color: var(--sw-modal-border, #e2e8f0) !important;
+                    /* Rebind --sw-text inside the modal so row-hover overrides on .sw-slow:hover
+                       (which pin --sw-text dark for the pink hover-bg) don't bleed into the modal. */
+                    --sw-text: var(--sw-modal-text);
+                    --sw-text-muted: var(--sw-modal-text-muted);
+                    animation: sw-modal-card-in 180ms cubic-bezier(.2,.8,.2,1);
+                }
+                .sw-stopwatch .sw-row.sw-expanded .sw-modal-card * { cursor: default; }
+                .sw-stopwatch .sw-modal-close { cursor: pointer; }
+                /* Section divider in modal uses --sw-modal-divider (lighter than --sw-border in dark mode). */
+                .sw-stopwatch .sw-row.sw-expanded .sw-section-heading {
+                    border-top-color: var(--sw-modal-divider, #f1f5f9) !important;
+                }
+                @keyframes sw-modal-in { from { background: rgba(0,0,0,0); } to { background: rgba(0,0,0,.65); } }
+                @keyframes sw-modal-card-in { from { transform: translateY(8px) scale(.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+                .sw-stopwatch .sw-modal-close:hover { color: var(--sw-text,#0f172a); }
+                /* When expanded, suppress the floating tip — the modal already shows everything. */
+                .sw-stopwatch .sw-row.sw-expanded .sw-tip { display: none !important; }
                 /* Flip tip below row for top rows so it doesn't clip the scroll viewport
                    or collide with the overview-bar segment tip dropping down from the header. */
                 .sw-stopwatch .sw-row:first-child .sw-tip,

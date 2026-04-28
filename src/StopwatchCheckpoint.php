@@ -22,6 +22,8 @@ final readonly class StopwatchCheckpoint implements Arrayable
 
     /**
      * @param array<array-key, mixed>|null $metadata
+     * @param list<array{sql: string, bindings: array<array-key, mixed>, durationMs: float}>|null $queryCalls
+     * @param list<array{method: string, url: string, status: int, durationMs: float}>|null $httpCalls
      */
     public function __construct(
         public string          $label,
@@ -34,6 +36,10 @@ final readonly class StopwatchCheckpoint implements Arrayable
         public ?int            $memoryUsage = null,
         public ?int            $memoryDelta = null,
         public ?int            $memoryPeak = null,
+        public ?int            $httpCount = null,
+        public ?float          $httpTimeMs = null,
+        public ?array          $httpCalls = null,
+        public ?array          $queryCalls = null,
     ) {
         $this->timeSinceLastCheckpoint = CarbonInterval::milliseconds($timeSinceLastCheckpointMs)->cascade();
         $this->timeSinceStopwatchStart = CarbonInterval::milliseconds($timeSinceStopwatchStartMs)->cascade();
@@ -56,6 +62,10 @@ final readonly class StopwatchCheckpoint implements Arrayable
 
         if ($this->queryCount !== null) {
             $parts[] = "{$this->queryCount}q / {$this->queryTimeMs}ms";
+        }
+
+        if ($this->httpCount !== null) {
+            $parts[] = "{$this->httpCount}h / " . round($this->httpTimeMs ?? 0, 1) . 'ms';
         }
 
         if ($this->memoryDelta !== null) {
@@ -97,6 +107,10 @@ final readonly class StopwatchCheckpoint implements Arrayable
      *     memoryUsage: int|null,
      *     memoryDelta: int|null,
      *     memoryPeak: int|null,
+     *     httpCount: int|null,
+     *     httpTimeMs: float|null,
+     *     httpCalls: list<array{method: string, url: string, status: int, durationMs: float}>|null,
+     *     queryCalls: list<array{sql: string, bindings: array<array-key, mixed>, durationMs: float}>|null,
      * }
      */
     public function toArray(): array
@@ -114,6 +128,10 @@ final readonly class StopwatchCheckpoint implements Arrayable
             'memoryUsage' => $this->memoryUsage,
             'memoryDelta' => $this->memoryDelta,
             'memoryPeak' => $this->memoryPeak,
+            'httpCount' => $this->httpCount,
+            'httpTimeMs' => $this->httpTimeMs,
+            'httpCalls' => $this->httpCalls,
+            'queryCalls' => $this->queryCalls,
         ];
     }
 

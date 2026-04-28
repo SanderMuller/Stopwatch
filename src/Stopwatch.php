@@ -5,12 +5,19 @@ namespace SanderMuller\Stopwatch;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterval;
 use Exception;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\Support\Jsonable;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Http\Client\Events\ConnectionFailed;
+use Illuminate\Http\Client\Events\RequestSending;
+use Illuminate\Http\Client\Events\ResponseReceived;
+use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\Response as HttpResponse;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Traits\Conditionable;
 use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
 use Stringable;
 
@@ -20,6 +27,8 @@ use Stringable;
  */
 final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 {
+    use Conditionable;
+
     private ?CarbonImmutable $startTime = null;
 
     private ?CarbonImmutable $endTime = null;
@@ -48,9 +57,37 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     private float $queryDurationMs = 0;
 
+    /** @var list<array{sql: string, bindings: array<array-key, mixed>, durationMs: float}> */
+    private array $queryCalls = [];
+
+    /** Cap on stored per-checkpoint query detail rows; the count + total time still reflect every query. */
+    private const int QUERY_CALL_DETAIL_CAP = 50;
+
     private bool $trackingMemory = false;
 
     private int $lastMemoryUsage = 0;
+
+    private bool $trackingHttp = false;
+
+    private bool $httpListenerRegistered = false;
+
+    private int $httpCount = 0;
+
+    private float $httpDurationMs = 0;
+
+    /** @var list<array{method: string, url: string, status: int, durationMs: float}> */
+    private array $httpCalls = [];
+
+    /**
+     * Per-request hrtime stamps keyed by spl_object_id of the Request, used to recover
+     * elapsed time on ConnectionFailed (which carries no transferStats).
+     *
+     * @var array<int, int>
+     */
+    private array $httpRequestStarts = [];
+
+    /** Cap on stored per-checkpoint HTTP call detail rows; the count + total time still reflect every call. */
+    private const int HTTP_CALL_DETAIL_CAP = 50;
 
     /** @var array<StopwatchNotificationChannel|class-string<StopwatchNotificationChannel>> */
     private array $notificationChannels = [];
@@ -118,6 +155,12 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
         $this->queryCount = 0;
         $this->queryDurationMs = 0;
+        $this->queryCalls = [];
+
+        $this->httpCount = 0;
+        $this->httpDurationMs = 0;
+        $this->httpCalls = [];
+        $this->httpRequestStarts = [];
 
         if ($this->trackingMemory) {
             $this->lastMemoryUsage = memory_get_usage();
@@ -169,6 +212,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
         $queryMetrics = $this->trackingQueries ? $this->collectQueryMetrics() : null;
         $memoryMetrics = $this->trackingMemory ? $this->collectMemoryMetrics() : null;
+        $httpMetrics = $this->trackingHttp ? $this->collectHttpMetrics() : null;
 
         $this->checkpoints->addCheckpoint(
             label: $label,
@@ -181,6 +225,10 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             memoryUsage: $memoryMetrics['memory_usage'] ?? null,
             memoryDelta: $memoryMetrics['memory_delta'] ?? null,
             memoryPeak: $memoryMetrics['memory_peak'] ?? null,
+            httpCount: $httpMetrics['count'] ?? null,
+            httpTimeMs: $httpMetrics['time_ms'] ?? null,
+            httpCalls: $httpMetrics['calls'] ?? null,
+            queryCalls: $queryMetrics['calls'] ?? null,
         );
 
         if (($output ?? $this->output) !== StopwatchOutput::Silent) {
@@ -268,6 +316,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->trackingQueries = true;
         $this->queryCount = 0;
         $this->queryDurationMs = 0;
+        $this->queryCalls = [];
 
         if (! $this->queryListenerRegistered) {
             $this->queryListenerRegistered = true;
@@ -279,6 +328,14 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
                 $this->queryCount++;
                 $this->queryDurationMs += $query->time;
+
+                if (count($this->queryCalls) < self::QUERY_CALL_DETAIL_CAP) {
+                    $this->queryCalls[] = [
+                        'sql' => $query->sql,
+                        'bindings' => $query->bindings,
+                        'durationMs' => $query->time,
+                    ];
+                }
             });
         }
 
@@ -298,6 +355,138 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     }
 
     /**
+     * Track outbound HTTP requests made through Laravel's `Http::` facade. Direct
+     * `new GuzzleHttp\Client` calls bypass the event dispatcher and will NOT be
+     * captured — same limitation as Laravel Telescope.
+     */
+    public function withHttpTracking(): self
+    {
+        if (! $this->enabled) {
+            return $this;
+        }
+
+        if (! class_exists(ResponseReceived::class) || ! app()->bound(Dispatcher::class)) {
+            throw new Exception('HTTP tracking requires illuminate/http and a Laravel application container. Install it via: composer require illuminate/http');
+        }
+
+        $this->trackingHttp = true;
+        $this->httpCount = 0;
+        $this->httpDurationMs = 0;
+        $this->httpCalls = [];
+        $this->httpRequestStarts = [];
+
+        if (! $this->httpListenerRegistered) {
+            $this->httpListenerRegistered = true;
+            $this->registerHttpListeners();
+        }
+
+        return $this;
+    }
+
+    private function registerHttpListeners(): void
+    {
+        $dispatcher = app(Dispatcher::class);
+
+        $dispatcher->listen(RequestSending::class, function (RequestSending $event): void {
+            if (! $this->shouldRecordHttp()) {
+                return;
+            }
+
+            $this->httpRequestStarts[spl_object_id($event->request)] = $this->clock->hrtime();
+        });
+
+        $dispatcher->listen(ResponseReceived::class, function (ResponseReceived $event): void {
+            if (! $this->shouldRecordHttp()) {
+                return;
+            }
+
+            // Prefer Guzzle's transferStats (Telescope's pattern); fall back to wall-clock from RequestSending
+            // when transferStats is missing (e.g. Http::fake()) or zero (under tests with FakeClock).
+            $transferMs = $this->resolveTransferTimeMs($event->response);
+            $durationMs = $transferMs > 0
+                ? $transferMs
+                : $this->consumeRequestStartElapsedMs($event->request);
+
+            $this->recordHttpCall(
+                method: $event->request->method(),
+                url: $this->stripUrlQueryString($event->request->url()),
+                status: $event->response->status(),
+                durationMs: $durationMs,
+            );
+        });
+
+        $dispatcher->listen(ConnectionFailed::class, function (ConnectionFailed $event): void {
+            if (! $this->shouldRecordHttp()) {
+                return;
+            }
+
+            $this->recordHttpCall(
+                method: $event->request->method(),
+                url: $this->stripUrlQueryString($event->request->url()),
+                status: 0,
+                durationMs: $this->consumeRequestStartElapsedMs($event->request),
+            );
+        });
+    }
+
+    private function shouldRecordHttp(): bool
+    {
+        return $this->enabled && $this->trackingHttp && ! $this->ended();
+    }
+
+    private function resolveTransferTimeMs(HttpResponse $response): float
+    {
+        $seconds = $response->transferStats?->getTransferTime() ?? 0.0;
+
+        return floor($seconds * 1000);
+    }
+
+    /**
+     * Match a response/failure event back to its RequestSending start hrtime by spl_object_id;
+     * returns 0.0 if the start wasn't recorded (e.g. the request fired before withHttpTracking()
+     * was enabled).
+     */
+    private function consumeRequestStartElapsedMs(Request $request): float
+    {
+        $key = spl_object_id($request);
+        $startedAt = $this->httpRequestStarts[$key] ?? null;
+        unset($this->httpRequestStarts[$key]);
+
+        if ($startedAt === null) {
+            return 0.0;
+        }
+
+        return ($this->clock->hrtime() - $startedAt) / 1_000_000;
+    }
+
+    /**
+     * Strip the `?query=string` portion of a URL at capture time so secrets in URLs (api tokens,
+     * session ids) don't leak through `toArray()` / `toJson()` / notifications. The HTML render
+     * already redacted these for display, but downstream consumers got the raw URL.
+     */
+    private function stripUrlQueryString(string $url): string
+    {
+        $pos = strpos($url, '?');
+
+        return $pos === false ? $url : substr($url, 0, $pos);
+    }
+
+    private function recordHttpCall(string $method, string $url, int $status, float $durationMs): void
+    {
+        $this->httpCount++;
+        $this->httpDurationMs += $durationMs;
+
+        if (count($this->httpCalls) < self::HTTP_CALL_DETAIL_CAP) {
+            $this->httpCalls[] = [
+                'method' => $method,
+                'url' => $url,
+                'status' => $status,
+                'durationMs' => $durationMs,
+            ];
+        }
+    }
+
+    /**
      * @return array{memory_usage: int, memory_delta: int, memory_peak: int}
      */
     private function collectMemoryMetrics(): array
@@ -314,17 +503,41 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     }
 
     /**
-     * @return array{queries: int, query_time_ms: float}
+     * @return array{queries: int, query_time_ms: float, calls: list<array{sql: string, bindings: array<array-key, mixed>, durationMs: float}>}
      */
     private function collectQueryMetrics(): array
     {
         $metrics = [
             'queries' => $this->queryCount,
             'query_time_ms' => round($this->queryDurationMs, 1),
+            'calls' => $this->queryCalls,
         ];
 
         $this->queryCount = 0;
         $this->queryDurationMs = 0;
+        $this->queryCalls = [];
+
+        return $metrics;
+    }
+
+    /**
+     * @return array{count: int, time_ms: float, calls: list<array{method: string, url: string, status: int, durationMs: float}>}
+     */
+    private function collectHttpMetrics(): array
+    {
+        $metrics = [
+            'count' => $this->httpCount,
+            'time_ms' => round($this->httpDurationMs, 1),
+            'calls' => $this->httpCalls,
+        ];
+
+        $this->httpCount = 0;
+        $this->httpDurationMs = 0;
+        $this->httpCalls = [];
+        // Don't clear $httpRequestStarts here — pool/async requests may be in-flight across the checkpoint
+        // and we still need their RequestSending hrtime when the response/failure event arrives. Stale
+        // entries are cleared on reset() (i.e. next start()/restart()), which fires per request in
+        // typical Laravel use, so orphan accumulation is bounded.
 
         return $metrics;
     }
@@ -616,7 +829,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     }
 
     /**
-     * @param array{queries: int, queryMs: float, memoryDelta: int, hasQueries: bool, hasMemory: bool} $totals
+     * @param array{queries: int, queryMs: float, memoryDelta: int, httpCount: int, httpMs: float, hasQueries: bool, hasMemory: bool, hasHttp: bool} $totals
      * @return list<string>
      */
     private function markdownSummary(array $totals): array
@@ -633,6 +846,10 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             $lines[] = '- **Queries (total):** ' . $totals['queries'] . ' in ' . self::formatDuration($totals['queryMs']);
         }
 
+        if ($totals['hasHttp']) {
+            $lines[] = '- **HTTP calls (total):** ' . $totals['httpCount'] . ' in ' . self::formatDuration($totals['httpMs']);
+        }
+
         if ($totals['hasMemory']) {
             $lines[] = '- **Memory delta (total):** ' . StopwatchCheckpoint::formatMemoryDelta($totals['memoryDelta']);
         }
@@ -641,7 +858,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     }
 
     /**
-     * @param array{queries: int, queryMs: float, memoryDelta: int, hasQueries: bool, hasMemory: bool} $totals
+     * @param array{queries: int, queryMs: float, memoryDelta: int, httpCount: int, httpMs: float, hasQueries: bool, hasMemory: bool, hasHttp: bool} $totals
      * @return list<string>
      */
     private function markdownTable(array $totals): array
@@ -649,10 +866,15 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $totalMs = $this->totalRunDuration()->totalMilliseconds;
         $hasQ = $totals['hasQueries'];
         $hasM = $totals['hasMemory'];
+        $hasH = $totals['hasHttp'];
 
         $headers = ['#', 'Checkpoint', 'Δ', 'Cumulative', 'Share', 'Slow'];
         if ($hasQ) {
             $headers[] = 'Queries';
+        }
+
+        if ($hasH) {
+            $headers[] = 'HTTP';
         }
 
         if ($hasM) {
@@ -669,7 +891,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $idx = 0;
         foreach ($this->checkpoints as $checkpoint) {
             $idx++;
-            $lines[] = '| ' . implode(' | ', $this->markdownRow($checkpoint, $idx, $totalMs, $hasQ, $hasM)) . ' |';
+            $lines[] = '| ' . implode(' | ', $this->markdownRow($checkpoint, $idx, $totalMs, $hasQ, $hasM, $hasH)) . ' |';
         }
 
         return $lines;
@@ -678,7 +900,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     /**
      * @return list<string>
      */
-    private function markdownRow(StopwatchCheckpoint $cp, int $idx, float $totalMs, bool $hasQ, bool $hasM): array
+    private function markdownRow(StopwatchCheckpoint $cp, int $idx, float $totalMs, bool $hasQ, bool $hasM, bool $hasH): array
     {
         $delta = $cp->timeSinceLastCheckpoint->totalMilliseconds;
         $cum = (int) round($cp->timeSinceStopwatchStart->totalMilliseconds);
@@ -695,6 +917,10 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         ];
         if ($hasQ) {
             $row[] = $this->markdownQueryCell($cp);
+        }
+
+        if ($hasH) {
+            $row[] = $this->markdownHttpCell($cp);
         }
 
         if ($hasM) {
@@ -715,6 +941,15 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         }
 
         return $cp->queryCount . 'q in ' . self::formatDuration($cp->queryTimeMs ?? 0);
+    }
+
+    private function markdownHttpCell(StopwatchCheckpoint $cp): string
+    {
+        if ($cp->httpCount === null) {
+            return '';
+        }
+
+        return $cp->httpCount . 'h in ' . self::formatDuration($cp->httpTimeMs ?? 0);
     }
 
     private function markdownMemoryCell(StopwatchCheckpoint $cp): string
