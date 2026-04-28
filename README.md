@@ -425,6 +425,12 @@ echo $stopwatch->toString();
 
 The `stopwatch()` helper is not available outside Laravel. Query tracking requires `illuminate/database` and a Laravel application. Config-based setup and notification channel resolution from class strings also require the Laravel container.
 
+## AI assistant skill
+
+This package ships an AI [skill](https://docs.claude.com/en/docs/claude-code/skills) that teaches an AI assistant how and when to reach for `stopwatch()` to investigate a slow request, command, or code path: checkpoint placement, when to enable query / memory / HTTP tracking, how to read the rendered card, and how to wire production tripwires.
+
+If you use [laravel/boost](https://github.com/laravel/boost), the skill is auto-discovered from `vendor/sandermuller/stopwatch/resources/boost/skills/`, just run `php artisan boost:install`.
+
 ## License
 
 MIT
