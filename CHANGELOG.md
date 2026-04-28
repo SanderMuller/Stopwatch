@@ -8,6 +8,47 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.6.0](https://github.com/SanderMuller/Stopwatch/compare/v0.5.2...v0.6.0) - 2026-04-28
+
+### Added
+
+- **`withHttpTracking()`** — captures outbound `Http::` facade calls per checkpoint with count, duration, and per-call detail (method, URL, status, individual transfer time). Per-call URLs are stripped of query strings at capture time so secrets in URLs don't leak through `toArray()` / `toJson()` / notifications. Up to 50 call detail rows are stored per checkpoint to bound memory; the count and total time still reflect every call beyond that. Status codes are color-coded in the render (green 2xx, amber 4xx, red 5xx + connection failures). Falls back to `RequestSending` → response wall-clock when `transferStats` is absent (e.g. `Http::fake()`) or when a `ConnectionFailed` ends the request, so timeouts no longer report as `0ms`. Configurable via `STOPWATCH_TRACK_HTTP=true`. **Limitation:** only requests through Laravel's `Http::` facade are captured — direct `new GuzzleHttp\Client` instances bypass Laravel's event dispatcher and are not tracked, same as Telescope.
+  
+- **Per-query SQL + bindings** captured by `withQueryTracking()` — every query's `sql` text, `bindings`, and individual `durationMs` are stored alongside the existing count/total time, capped at 50 per checkpoint. Surfaced in the new click-to-expand modal so you can see *which* query was slow, not just how many.
+  
+- **Click any row to expand** into a centered modal with the full label, all metadata, memory now/Δ/peak, every captured query (SQL + bindings + per-query duration), and every captured HTTP call. Backdrop click, ESC, or × button closes; only one row open at a time. Animated open (140ms backdrop fade + 180ms card slide-up). Pointer-cursor on rows is JS-gated, so the markup stays email-safe.
+  
+- **`when()` / `unless()`** conditional helpers on `Stopwatch` for fluent tracking opt-in chains:
+  
+  ```php
+  stopwatch()
+      ->withMemoryTracking()
+      ->when($trackQueries, fn ($sw) => $sw->withQueryTracking())
+      ->unless(app()->runningUnitTests(), fn ($sw) => $sw->withHttpTracking())
+      ->start();
+  
+  ```
+- **Footer totals** now include the cumulative HTTP count + duration alongside queries + memory.
+  
+- **Markdown summary** (`stopwatch()->toMarkdown()`) gains an HTTP totals line and an HTTP column in the per-checkpoint table when tracking is enabled.
+  
+
+### Changed
+
+- **Per-row chips** are suppressed when their tracked count is zero — quiet rows on a tracking-enabled profile no longer carry visually noisy `0q · 0ms` placeholders. Footer totals still show cumulative across all rows.
+- **Per-row chips** now render as `[icon] count · time` instead of `count<letter> · time` — the icon (db / globe) carries the meaning, removing the redundant `q` / `h` letter. Footer totals adopt the same shape.
+- **Modal in dark mode** is now visually elevated above the page surface via dedicated `--sw-modal-bg` / `--sw-modal-border` / `--sw-modal-divider` / `--sw-modal-text` CSS variables. The previous shared `--sw-bg` / `--sw-border` / `--sw-text` made the modal blend into the dark page; the new variables also prevent slow-row hover overrides (which pin `--sw-text` dark for the pink hover-bg) from leaking into the modal text.
+- **Backdrop opacity** strengthened from `rgba(15,23,42,.55)` to `rgba(0,0,0,.65)` — more visible darkening of the rows behind the modal in both color schemes.
+- **Connection-failed HTTP requests** now report their actual elapsed time (recovered from the matching `RequestSending` event) instead of always `0ms`.
+
+### Internal
+
+- Render code split into per-tracker helper classes — `StopwatchHttpRenderer`, `StopwatchQueryRenderer`, `StopwatchExpansionRenderer`, `StopwatchSlowStyling` — to keep per-class cognitive complexity within the project's PHPStan budget. All marked `@internal` with non-stable output.
+- HTTP listener registration is idempotent (guarded by a registered-once flag), and re-calling `withHttpTracking()` mid-run resets pending state cleanly. The same fix landed for `withQueryTracking()` and the new per-query detail buffer.
+- Test suite grew from 81 to 104 tests (303 assertions), including coverage for HTTP tracking lifecycle, per-query SQL capture, the 50-cap behavior, listener idempotency, modal expansion render, and dark-mode CSS variable wiring.
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.5.2...v0.6.0
+
 ## [v0.5.2](https://github.com/SanderMuller/Stopwatch/compare/0.5.1...v0.5.2) - 2026-04-26
 
 ### Internal
