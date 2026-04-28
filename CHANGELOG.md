@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.6.1](https://github.com/SanderMuller/Stopwatch/compare/v0.6.0...v0.6.1) - 2026-04-28
+
+### AI assistant skill
+
+This release ships a Claude Code [skill](https://docs.claude.com/en/docs/claude-code/skills) at `resources/boost/skills/profile-app/SKILL.md` that teaches an AI assistant how and when to reach for `stopwatch()` to investigate a slow request, command, or code path: checkpoint placement, when to enable query / memory / HTTP tracking, how to read the rendered card, and how to wire production tripwires.
+
+If you use [`laravel/boost`](https://github.com/laravel/boost), the skill is auto-discovered from `vendor/sandermuller/stopwatch/resources/boost/skills/` — run `php artisan boost:install`
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.6.0...v0.6.1
+
 ## [v0.6.0](https://github.com/SanderMuller/Stopwatch/compare/v0.5.2...v0.6.0) - 2026-04-28
 
 ### Added
@@ -26,6 +36,7 @@ the release workflow promotes it into this file as part of the tag flow.
       ->when($trackQueries, fn ($sw) => $sw->withQueryTracking())
       ->unless(app()->runningUnitTests(), fn ($sw) => $sw->withHttpTracking())
       ->start();
+  
   
   ```
 - **Footer totals** now include the cumulative HTTP count + duration alongside queries + memory.
