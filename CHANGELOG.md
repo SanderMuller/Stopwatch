@@ -8,6 +8,71 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.7.0](https://github.com/SanderMuller/Stopwatch/compare/v0.6.1...v0.7.0) - 2026-04-29
+
+### Run log
+
+Persist every finished stopwatch run as a markdown file under `storage/stopwatch/runs/<ULID>.md` so you (or an AI assistant) can later inspect slow runs without re-running the workload. Off by default — enable with one env var:
+
+```dotenv
+STOPWATCH_LOG_RUNS=true
+
+```
+Each persisted file is plain markdown (the same shape as `stopwatch()->toMarkdown()`) with a YAML frontmatter header (`id`, `recorded_at`, `duration_ms`, `url`, `method`, `status`, `command`, query/HTTP/memory totals, slow-threshold flag) so listing is cheap. Three artisan commands are registered:
+
+```bash
+php artisan stopwatch:runs:list --slow --limit=10
+php artisan stopwatch:runs:show <id>
+php artisan stopwatch:runs:clear              # cleanup when done
+
+```
+Filter the list with `--slow` (only runs that exceeded `slow_threshold`) or `--threw` (only runs whose request crashed mid-flight). The `clear` command supports `--keep=N`, `--days=N`, and `--force` (all destructive paths prompt for confirmation unless `--force` is passed or the shell is non-interactive).
+
+#### What's tracked
+
+The run log captures whole-run totals — including work that happens **after the last checkpoint** — via new accumulators added to `Stopwatch`. The existing `toMarkdown()` body is unchanged. A new public `Stopwatch::finalRunTotals()` exposes the post-finish totals if you want to consume them in your own tooling, and `Stopwatch::checkpoints()` returns a `list<StopwatchCheckpoint>` snapshot.
+
+`StopwatchMiddleware` was extended to record runs even when the controller throws — the run-log file is written with `threw: true` in the frontmatter, then the exception is re-thrown unchanged. This means slow-then-crashing requests are still debuggable.
+
+#### Knobs
+
+| Env var                            | Default     | Purpose                                                              |
+|------------------------------------|-------------|----------------------------------------------------------------------|
+| `STOPWATCH_LOG_RUNS`               | `false`     | Master toggle                                                        |
+| `STOPWATCH_LOG_DIR`                | `storage/stopwatch/runs` | Override the storage path                                |
+| `STOPWATCH_LOG_MIN_DURATION_MS`    | `50`        | Skip runs faster than this (set `0` to log everything)               |
+| `STOPWATCH_LOG_MAX_FILES`          | `200`       | Hard cap on retained files (deterministic prune on every write)      |
+| `STOPWATCH_LOG_MAX_AGE_DAYS`       | `7`         | Soft age cap (5%-probabilistic prune by ULID timestamp)              |
+| `STOPWATCH_LOG_DETAIL`             | `summary`   | `summary` or `full` (full appends per-call SQL/HTTP detail tables)   |
+| `STOPWATCH_LOG_INCLUDE_BINDINGS`   | `false`     | Persist SQL bindings (off by default — PII opt-in)                   |
+| `STOPWATCH_LOG_SKIP_EMPTY`         | `true`      | Skip zero-checkpoint runs (typical for autoStart on idle routes)     |
+
+The run-log directory is auto-created on first write with a `.gitignore` (`*.md`) so the files never accidentally end up in commits. Writes use a tmp-file + atomic `rename()` so concurrent listings can't observe partial files. Recorder failures never propagate — disk errors are logged via `logger()->warning()` and the request completes normally.
+
+#### Skill update
+
+The bundled `profile-app` skill (used by Claude Code via `laravel/boost`) gains a new **Step 6 — Browse-and-debug from a run log** section that walks an AI assistant through enabling the log, reproducing, listing slow runs, and inspecting individual files via the artisan commands.
+
+#### Limitations
+
+The run log is Laravel-only and is **not supported under Laravel Octane / Swoole** in v1 — the `Stopwatch` singleton has mutable per-run state that is not safe for concurrent coroutines. Per-request stopwatch lifecycle is a separate, larger refactor.
+
+#### Public API additions
+
+- `Stopwatch::recordRunsTo(RunRecorder ...$recorders): self` — replace the recorder list.
+- `Stopwatch::withRunContext(array $context): self` — merge per-run context (cleared on `reset()` and after `finish()` dispatch).
+- `Stopwatch::pushRunContextProvider(callable $provider): self` — register a persistent context provider, evaluated lazily at finish.
+- `Stopwatch::resolveRunContext(): array` — merged context (provider output + per-run overrides).
+- `Stopwatch::finalRunTotals(): array` — whole-run totals (queries, HTTP, memory, slow-threshold flag).
+- `Stopwatch::checkpoints(): list<StopwatchCheckpoint>` — immutable snapshot of recorded checkpoints.
+- `RunLog\RunRecorder` interface for custom sinks (e.g. S3, Loki, Slack).
+
+Notification channel dispatch is now wrapped in `try/catch` internally (a throwing channel previously aborted `finish()` before any subsequent dispatch). No behaviour change for non-throwing channels.
+
+Safe to upgrade from 0.6.x with no code changes required.
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.6.1...v0.7.0
+
 ## [v0.6.1](https://github.com/SanderMuller/Stopwatch/compare/v0.6.0...v0.6.1) - 2026-04-28
 
 ### AI assistant skill
@@ -36,6 +101,7 @@ If you use [`laravel/boost`](https://github.com/laravel/boost), the skill is aut
       ->when($trackQueries, fn ($sw) => $sw->withQueryTracking())
       ->unless(app()->runningUnitTests(), fn ($sw) => $sw->withHttpTracking())
       ->start();
+  
   
   
   ```
