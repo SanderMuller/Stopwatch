@@ -368,53 +368,80 @@ return response('OK')
 
 ### Run log (persistent profile history)
 
-Persist a markdown record of every finished stopwatch run to disk so you (or an AI assistant) can later inspect slow runs without re-running the workload. Off by default — enable with one env var:
+Every finished stopwatch run is written to `storage/stopwatch/runs/<ULID>.md` so you (or an AI assistant) can come back to slow runs later, without re-reproducing them. Crashed requests are captured too, with an `## Exception` section and a stack trace.
+
+#### Enabling the run log
+
+One env var. Off by default.
 
 ```dotenv
 STOPWATCH_LOG_RUNS=true
 ```
 
-Pair with `StopwatchMiddleware` (or call `stopwatch()->finish()` from a command/job). Each finished run that exceeds `STOPWATCH_LOG_MIN_DURATION_MS` (default `50ms`) gets persisted to `storage/stopwatch/runs/<ULID>.md`. The body is identical to `stopwatch()->toMarkdown()`; the YAML frontmatter on top makes the list command cheap.
+Pair with `StopwatchMiddleware` for HTTP runs, or call `stopwatch()->finish()` yourself from a command or job. Runs faster than `STOPWATCH_LOG_MIN_DURATION_MS` (default `50ms`) are skipped.
 
-Inspect from the command line:
+Each file's body starts with the same markdown `stopwatch()->toMarkdown()` already produces, then appends extra sections when relevant: `## SQL detail` and `## HTTP detail` in `full` mode, `## Exception` when something threw, and `## Context` when the Context collector is enabled. YAML frontmatter on top keeps listing cheap.
+
+#### Inspect runs
+
+Three artisan commands. The full markdown of `show` is what an AI assistant or a human reads to debug.
 
 ```bash
 php artisan stopwatch:runs:list --slow --limit=10
 php artisan stopwatch:runs:show <id>
 php artisan stopwatch:runs:clear              # cleanup when done
-php artisan stopwatch:runs:list --format=json # for scripts piping into jq
-
-# Deterministic cron-friendly prune (replaces the 5%-probabilistic in-process prune):
-#   0 3 * * * php artisan stopwatch:runs:clear --days=7 --force
-#   0 3 * * * php artisan stopwatch:runs:clear --keep=200 --force
 ```
 
-Configuration knobs (env or `config/stopwatch.php` under `run_log`):
+Filter the list:
 
-| Var                                | Default | Purpose                                                              |
-|------------------------------------|---------|----------------------------------------------------------------------|
-| `STOPWATCH_LOG_RUNS`               | `false` | Master toggle                                                        |
-| `STOPWATCH_LOG_DIR`                | `storage/stopwatch/runs` | Override the storage path                                |
-| `STOPWATCH_LOG_MIN_DURATION_MS`    | `50`    | Skip runs faster than this; set to `0` to log everything             |
-| `STOPWATCH_LOG_MAX_FILES`          | `200`   | Cap on retained files (oldest pruned automatically on every write)   |
-| `STOPWATCH_LOG_MAX_AGE_DAYS`       | `7`     | Soft age cap (probabilistic prune)                                   |
-| `STOPWATCH_LOG_DETAIL`             | `summary` | `summary` or `full`. `full` appends per-call SQL and HTTP detail tables |
-| `STOPWATCH_LOG_INCLUDE_BINDINGS`   | `false` | Persist SQL bindings in `full` mode (PII opt-in — leave off unless you need it) |
-| `STOPWATCH_LOG_SKIP_EMPTY`         | `true`  | Skip runs that finished with zero checkpoints                        |
-| `STOPWATCH_LOG_COLLECT_EXCEPTIONS` | `true`  | Capture `Throwable` class/file/line + top-N trace into the run log   |
-| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE` | `false` | Persist `$e->getMessage()` (off by default — messages can leak input) |
-| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE_MAX_CHARS` | `500` | Codepoint cap before `…` is appended                          |
-| `STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES` | `10` | Trace frame cap (`0` omits the trace section)                     |
-| `STOPWATCH_LOG_COLLECT_CONTEXT`    | `false` | Capture `Illuminate\Support\Facades\Context::all()` (visible only)  |
-| `STOPWATCH_LOG_CONTEXT_VALUE_MAX_BYTES` | `4096` | Per-value byte cap for context body cells                      |
+```bash
+php artisan stopwatch:runs:list --threw                          # only crashed runs
+php artisan stopwatch:runs:list --exception-class=ValidationException
+php artisan stopwatch:runs:list --ctx tenant_id=acme --ctx user_id=42
+php artisan stopwatch:runs:list --format=json                    # for scripts / jq
+```
 
-Crashed requests still write a run-log file with `threw: true` in the frontmatter, so you can debug exceptions after the fact. Run-log writes never throw — disk failures are logged via `logger()->warning()` and the request completes normally.
+Want a predictable cron job instead of the 5%-probabilistic in-process prune?
 
-> The run log is **Laravel-only** in v1 and is **not supported under Laravel Octane / Swoole** until the stopwatch lifecycle becomes per-request — the singleton's mutable per-run state is not safe for concurrent coroutines.
+```bash
+0 3 * * * php artisan stopwatch:runs:clear --days=7 --force
+0 3 * * * php artisan stopwatch:runs:clear --keep=200 --force
+```
 
-#### Exception detail and Laravel Context
+#### Let your AI read the logs
 
-When `collect_exceptions` is on (default), every crashed request gets two extra fields in frontmatter (`exception_class`, `exception_file`, `exception_line`) plus a `## Exception` body section with a top-N stack trace. Trace `args` are **never** persisted — only `file`, `line`, `class`, `function`, `type`. Wrapped exceptions get one level of `getPrevious()` rendered in a `### Previous` sub-section.
+If you have [`laravel/boost`](https://github.com/laravel/boost) installed and the bundled `profile-app` skill synced to your editor, you can skip the artisan commands and just ask. Something like *"the /admin/users page feels slow, can you figure out why?"* is enough. The skill will:
+
+1. Verify `STOPWATCH_LOG_RUNS=true` and turn it on if not.
+2. Ask you to reproduce the slow request.
+3. Run `stopwatch:runs:list --slow` and pick the worst offenders.
+4. Run `stopwatch:runs:show <id>` on each, read the per-checkpoint table, and point at the segment that owns most of the share.
+
+Same loop a human would run, just automated. Works with any agent that supports Laravel Boost (Claude Code, Cursor, Copilot, etc.).
+
+#### Workflow: debug a slow request
+
+If you'd rather drive it yourself, here's the loop:
+
+1. Set `STOPWATCH_LOG_RUNS=true` in `.env`. For HTTP requests, register `StopwatchMiddleware::autoStart()` so each run is started and finished automatically. For commands and jobs, call `stopwatch()->start()` at the top of your handler and `stopwatch()->finish()` before it returns. Add `stopwatch()->checkpoint(...)` calls along the suspect path so you can see where time is going, not just that it's slow.
+2. Reproduce the slow path. Visit the page, run the command, replay the request — whatever it takes.
+3. List the slowest recent runs:
+    ```bash
+    php artisan stopwatch:runs:list --slow --limit=10
+    ```
+4. Pick the worst offender's id from the table and inspect it:
+    ```bash
+    php artisan stopwatch:runs:show 01HZ8K9X4N5P2Q3R4S5T6U7V8W
+    ```
+5. Read the per-checkpoint table. Find the row that owns most of the **Share** column. Common shapes:
+   - High `q` count on one row: N+1 candidate. Flip to `STOPWATCH_LOG_DETAIL=full` and reproduce again to see the actual SQL.
+   - High `h` count: outbound API loop. Same flag adds method/URL/status per call.
+   - `queries_total` >> sum of per-checkpoint queries: significant work happens after the last checkpoint. Add a checkpoint near the response return and re-profile.
+6. Split the hot row by dropping more `stopwatch()->checkpoint(...)` calls inside that section of code. Fix what you find. Go back to step 2.
+
+#### Crash diagnostics
+
+When a request throws, the middleware catches it, persists a run-log file with `threw: true`, then re-throws. Frontmatter gets the exception class / file / line; the body gets a `## Exception` section with a top-N stack trace and (one level of) `### Previous` for wrapped exceptions.
 
 ```yaml
 ---
@@ -424,19 +451,45 @@ threw: true
 exception_class: Illuminate\Validation\ValidationException
 exception_file: app/Http/Controllers/OrderController.php
 exception_line: 142
+ctx_trace_id: 01HZULID0000000000000000A
 ---
 ```
 
-Set `STOPWATCH_LOG_COLLECT_CONTEXT=true` to capture `Illuminate\Support\Facades\Context` into a `## Context` body section. Hidden context (`Context::addHidden()`) is **never** read. If your app does:
+> [!NOTE]
+> Trace `args` are **never** persisted. Only `file`, `line`, `class`, `function`, `type` from each frame. The exception message itself is also off by default (set `STOPWATCH_LOG_EXCEPTIONS_MESSAGE=true` to opt in; many app messages quote validation or user input). When enabled, messages are capped via `mb_substr` and can be redacted via `options.exceptions.mask_message_matching`.
+
+For queued jobs / commands that catch their own exceptions, capture them yourself before `finish()`:
+
+```php
+use SanderMuller\Stopwatch\Stopwatch;
+use Throwable;
+
+try {
+    // ...
+} catch (Throwable $e) {
+    stopwatch()
+        ->withTransientContext(Stopwatch::TRANSIENT_EXCEPTION, $e)
+        ->finish();
+
+    throw $e;
+}
+```
+
+#### Correlate with `laravel.log`
+
+Set `STOPWATCH_LOG_COLLECT_CONTEXT=true` to capture `Illuminate\Support\Facades\Context::all()` (Laravel 11+) into a `## Context` body section. Hidden context (`Context::addHidden()`) is **never** read.
+
+If your app already does:
 
 ```php
 Context::add('trace_id', (string) Str::ulid());
 Context::add('tenant_id', $tenant->slug);
 ```
 
-…you can pivot from a slow run-log entry to the matching `laravel.log` line by `trace_id`. To make a key sortable from `stopwatch:runs:list`, promote it via `config/stopwatch.php`:
+…promote those keys via `config/stopwatch.php` so they land in frontmatter and `stopwatch:runs:list --ctx key=value` can filter on them:
 
 ```php
+// config/stopwatch.php → run_log.options.context
 'options' => [
     'context' => [
         'frontmatter_keys' => ['trace_id', 'tenant_id'],
@@ -444,33 +497,58 @@ Context::add('tenant_id', $tenant->slug);
 ],
 ```
 
-Promoted scalar values land as `ctx_trace_id` / `ctx_tenant_id` in frontmatter. The encoder is round-trip-safe — string `"01"` survives as the string `"01"`, not the int `1`.
-
-##### Pivoting between run-log and `laravel.log`
-
-Once `trace_id` is promoted, you can find a slow run, copy its trace id, and grep `laravel.log` for the same id (Laravel auto-includes Context in log records via the structured-logging integration):
+Promoted scalar values land in frontmatter as `ctx_trace_id` / `ctx_tenant_id`, round-trip-safe (string `"01"` stays `"01"`, not int `1`). Then pivot from run log to log line:
 
 ```bash
-# Find the slowest crashed runs of a specific exception type for a single tenant
-php artisan stopwatch:runs:list --threw --exception-class=ValidationException \
-    --ctx tenant_id=acme --format=json | jq -r '.[] | .frontmatter.ctx_trace_id'
+# Slowest crashed runs of one exception type for one tenant; pull their trace ids
+TRACE_IDS=$(php artisan stopwatch:runs:list --threw --exception-class=ValidationException \
+    --ctx tenant_id=acme --format=json | jq -r '.[].frontmatter.ctx_trace_id')
 
-# Then for any returned id:
-grep "01HZ8K9X4N5P2Q3R4S5T6U7V8W" storage/logs/laravel.log
+# Then grep laravel.log for any of them (Laravel auto-includes Context in structured logs)
+for id in $TRACE_IDS; do grep "$id" storage/logs/laravel.log; done
 ```
 
-The same `--ctx` flag accepts repeated `key=value` pairs (all must match — AND), and `--exception-class` accepts either the FQCN or the trailing class name.
+#### Configuration
 
-Array-typed config-only options:
+Env knobs (`config/stopwatch.php` under `run_log` for the array-typed ones):
 
-| Config path | Purpose |
-|-------------|---------|
-| `options.exceptions.mask_message_matching` | List of patterns. Leading `/` = preg, otherwise substring; matches replaced with `***`. |
-| `options.exceptions.trace_exclude_paths` | Substring matches against frame.file — hide vendor noise. |
-| `options.context.allow` | Allowlist of context keys. Empty = all visible **scalar** keys (rich objects opt in via explicit allowlist). |
-| `options.context.deny` | Denylist applied after allow. |
-| `options.context.mask` | Replace value with `***` while preserving the key. |
-| `options.context.frontmatter_keys` | Promote scalar values to frontmatter as `ctx_<key>` (sortable from list view). |
+| Var                                          | Default                  | Purpose                                                              |
+|----------------------------------------------|--------------------------|----------------------------------------------------------------------|
+| `STOPWATCH_LOG_RUNS`                         | `false`                  | Master toggle                                                        |
+| `STOPWATCH_LOG_DIR`                          | `storage/stopwatch/runs` | Override the storage path                                            |
+| `STOPWATCH_LOG_MIN_DURATION_MS`              | `50`                     | Skip runs faster than this; `0` to log everything                    |
+| `STOPWATCH_LOG_MAX_FILES`                    | `200`                    | Cap on retained files (oldest pruned automatically)                  |
+| `STOPWATCH_LOG_MAX_AGE_DAYS`                 | `7`                      | Soft age cap (probabilistic prune)                                   |
+| `STOPWATCH_LOG_DETAIL`                       | `summary`                | `full` appends per-call SQL/HTTP detail tables                       |
+| `STOPWATCH_LOG_INCLUDE_BINDINGS`             | `false`                  | Persist SQL bindings in `full` mode (PII opt-in)                     |
+| `STOPWATCH_LOG_SKIP_EMPTY`                   | `true`                   | Skip runs that finished with zero checkpoints                        |
+| `STOPWATCH_LOG_COLLECT_EXCEPTIONS`           | `true`                   | Capture `Throwable` class/file/line + trace                          |
+| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE`           | `false`                  | Persist `$e->getMessage()` (PII opt-in)                              |
+| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE_MAX_CHARS` | `500`                    | Codepoint cap before `…` is appended                                 |
+| `STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES`      | `10`                     | Trace frame cap (`0` omits the trace section)                        |
+| `STOPWATCH_LOG_COLLECT_CONTEXT`              | `false`                  | Capture `Context::all()` (visible only)                              |
+| `STOPWATCH_LOG_CONTEXT_VALUE_MAX_BYTES`      | `4096`                   | Per-value byte cap for context body cells                            |
+
+Array-typed options (config-only; env can't express arrays cleanly):
+
+| Config path                                  | Purpose                                                                                            |
+|----------------------------------------------|----------------------------------------------------------------------------------------------------|
+| `options.exceptions.mask_message_matching`   | Patterns. Leading `/` = preg, otherwise substring; matches replaced with `***`. Applied AFTER cap. |
+| `options.exceptions.trace_exclude_paths`     | Substring matches against frame.file. Use to hide vendor noise.                                    |
+| `options.context.allow`                      | Allowlist. Empty = all visible **scalar** keys; rich objects need explicit allowlisting.           |
+| `options.context.deny`                       | Denylist applied after allow.                                                                      |
+| `options.context.mask`                       | Replace value with `***` while preserving the key.                                                 |
+| `options.context.frontmatter_keys`           | Promote scalar values to frontmatter as `ctx_<key>` (sortable from list view).                     |
+
+#### Limitations
+
+> [!NOTE]
+> The run log is **Laravel-only** and **not supported under Laravel Octane or Swoole**. The `Stopwatch` singleton keeps per-run state in memory, which is not safe for concurrent coroutines. Making the lifecycle per-request is a separate refactor. Until that lands, keep `STOPWATCH_LOG_RUNS=false` under Octane.
+
+> [!NOTE]
+> `Stopwatch::dd($exception)` does **not** capture the exception in this version. `dd()` calls `finish()` before it inspects its dump arguments, so the recorder runs first and the throwable never reaches it. Workaround: `$stopwatch->withTransientContext(Stopwatch::TRANSIENT_EXCEPTION, $e)->dd()`.
+
+Run-log writes never throw. Disk failures are logged via `logger()->warning()` and the request completes normally. Crashed runs do a bit of extra work (build the trace, render the `## Exception` section), but the overhead is bounded by `STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES` and amortised across the file write.
 
 ### Manually stop the stopwatch
 
