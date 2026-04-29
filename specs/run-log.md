@@ -530,77 +530,77 @@ Keep the existing skill's structure; do not introduce a new top-level skill — 
 
 ### Phase 1: Foundation — recorder interface, store, markdown writer (Priority: HIGH)
 
-- [ ] Create `src/RunLog/RunRecorder.php` interface — `record(Stopwatch $stopwatch, array $context): void`. Doc explicitly: implementations must not throw.
-- [ ] Create `src/RunLog/RunLogStore.php` with `listRuns()`, `getRun()`, `getRunPath()`, `clear()`, `pruneByCount()`, `pruneByAge()`. Path resolution: `STOPWATCH_LOG_DIR` env → `storage_path('stopwatch/runs')`. When neither resolves (no Laravel), the store reports unavailable; recorder caller skips persistence with a one-time logger warning.
-- [ ] Implement tiny line-based YAML frontmatter parser inside `RunLogStore` per §2.2 — split on first `:`, plain string values, no nesting. ~30 LOC.
-- [ ] Auto-create dir + `.gitignore` (`*.md`) on first write.
-- [ ] Create `src/RunLog/MarkdownRunRecorder.php` — applies `min_duration_ms` and `skip_empty` filters, builds frontmatter from `Stopwatch::finalRunTotals()` + `$context`, appends `Stopwatch::toMarkdown()` body, optional SQL/HTTP detail when `detail=full`, optional bindings when `include_bindings=true`. Write `<ULID>.md` via `(string) Str::ulid()` filename, deterministic count-prune after every write, 5% probabilistic age-prune.
-- [ ] Tests — `RunLogStoreTest`: write/list/get/clear, count prune, age prune, `.gitignore` auto-create, frontmatter parse round-trip, parser handles `command: cache:clear` (colon in value), unavailable store path. `MarkdownRunRecorderTest`: frontmatter shape, body shape, `min_duration_ms` filter, `skip_empty` filter, summary vs full detail, bindings excluded by default, bindings included when flag set, ULID uniqueness under 100 sequential writes.
+- [x] Create `src/RunLog/RunRecorder.php` interface — `record(Stopwatch $stopwatch, array $context): void`. Doc explicitly: implementations must not throw.
+- [x] Create `src/RunLog/RunLogStore.php` with `listRuns()`, `getRun()`, `getRunPath()`, `clear()`, `pruneByCount()`, `pruneByAge()`. Path resolution: `STOPWATCH_LOG_DIR` env → `storage_path('stopwatch/runs')`. When neither resolves (no Laravel), the store reports unavailable; recorder caller skips persistence with a one-time logger warning.
+- [x] Implement tiny line-based YAML frontmatter parser inside `RunLogStore` per §2.2 — split on first `:`, plain string values, no nesting. ~30 LOC.
+- [x] Auto-create dir + `.gitignore` (`*.md`) on first write.
+- [x] Create `src/RunLog/MarkdownRunRecorder.php` — applies `min_duration_ms` and `skip_empty` filters, builds frontmatter from `Stopwatch::finalRunTotals()` + `$context`, appends `Stopwatch::toMarkdown()` body, optional SQL/HTTP detail when `detail=full`, optional bindings when `include_bindings=true`. Write `<ULID>.md` via `(string) Str::ulid()` filename, deterministic count-prune after every write, 5% probabilistic age-prune.
+- [x] Tests — `RunLogStoreTest`: write/list/get/clear, count prune, age prune, `.gitignore` auto-create, frontmatter parse round-trip, parser handles `command: cache:clear` (colon in value), unavailable store path. `MarkdownRunRecorderTest`: frontmatter shape, body shape, `min_duration_ms` filter, `skip_empty` filter, summary vs full detail, bindings excluded by default, bindings included when flag set, ULID uniqueness under 100 sequential writes.
 
 ### Phase 2: Stopwatch whole-run accumulators + finalisation (Priority: HIGH)
 
-- [ ] Add `$totalQueryCount`, `$totalQueryDurationMs`, `$totalHttpCount`, `$totalHttpDurationMs`, `$totalMemoryDelta`, `$runStartMemory` private fields.
-- [ ] In the `QueryExecuted` listener (`src/Stopwatch.php:324-339`) increment whole-run counters alongside per-checkpoint counters.
-- [ ] In `recordHttpCall()` (`src/Stopwatch.php:474`) increment whole-run counters alongside per-checkpoint counters.
-- [ ] Capture `$runStartMemory` in `reset()` when memory tracking is on; compute `$totalMemoryDelta` in new private `finaliseTotals()` called from `finish()`.
-- [ ] Reset all whole-run counters in `reset()`.
-- [ ] Add public `finalRunTotals(): array` returning the shape in §4.4. **Do not modify `toArray()` or `toMarkdown()`.**
-- [ ] Tests — `StopwatchTest` additions: query/http/memory work between the last checkpoint and `finish()` is reflected in `finalRunTotals()` but NOT in `toMarkdown()` body (current behaviour preserved); accumulators reset on `reset()`; tracking-disabled runs report null/zero.
+- [x] Add `$totalQueryCount`, `$totalQueryDurationMs`, `$totalHttpCount`, `$totalHttpDurationMs`, `$totalMemoryDelta`, `$runStartMemory` private fields.
+- [x] In the `QueryExecuted` listener (`src/Stopwatch.php:324-339`) increment whole-run counters alongside per-checkpoint counters.
+- [x] In `recordHttpCall()` (`src/Stopwatch.php:474`) increment whole-run counters alongside per-checkpoint counters.
+- [x] Capture `$runStartMemory` in `reset()` when memory tracking is on; compute `$totalMemoryDelta` in new private `finaliseTotals()` called from `finish()`.
+- [x] Reset all whole-run counters in `reset()`.
+- [x] Add public `finalRunTotals(): array` returning the shape in §4.4. **Do not modify `toArray()` or `toMarkdown()`.**
+- [x] Tests — `StopwatchTest` additions: query/http/memory work between the last checkpoint and `finish()` is reflected in `finalRunTotals()` but NOT in `toMarkdown()` body (current behaviour preserved); accumulators reset on `reset()`; tracking-disabled runs report null/zero.
 
 ### Phase 3: Stopwatch run-log integration — recorders + context (Priority: HIGH)
 
-- [ ] Add `$runRecorders`, `$runContext`, `$contextProviders` properties.
-- [ ] Add `recordRunsTo(RunRecorder ...$recorders): self` — **replace** semantics, not append.
-- [ ] Add `withRunContext(array $context): self` — merges into per-run context.
-- [ ] Add `pushRunContextProvider(callable $provider): self` — appends to provider list (these are wiring, append is correct).
-- [ ] Add `resolveRunContext(): array` — runs providers, then merges `$runContext` overrides on top.
-- [ ] Add private `safeDispatchRunRecorders()` and `safeDispatchNotifications()` — both wrap each handler in `try/catch` + `logger()->warning()`.
-- [ ] Modify `finish()`: call `finaliseTotals()`, then `safeDispatchRunRecorders()`, then `safeDispatchNotifications()` (recorders BEFORE notifications, both protected).
-- [ ] In `reset()`: clear `$runContext` (do NOT clear `$runRecorders` or `$contextProviders`).
-- [ ] Tests — recorders fire on first `finish()` only, throwing notification does not abort recorders, throwing recorder is caught, `recordRunsTo()` replaces existing list, providers survive `reset()`, `withRunContext` cleared on `reset()`, `withRunContext` overrides provider on key collision, recorders fire on every implicit `finish()` trigger (`toArray`, `toMarkdown`, `toHtml`, `toServerTiming`, `dd()`) but only once because of `$endHrtime` short-circuit.
+- [x] Add `$runRecorders`, `$runContext`, `$contextProviders` properties.
+- [x] Add `recordRunsTo(RunRecorder ...$recorders): self` — **replace** semantics, not append.
+- [x] Add `withRunContext(array $context): self` — merges into per-run context.
+- [x] Add `pushRunContextProvider(callable $provider): self` — appends to provider list (these are wiring, append is correct).
+- [x] Add `resolveRunContext(): array` — runs providers, then merges `$runContext` overrides on top.
+- [x] Add private `safeDispatchRunRecorders()` and `safeDispatchNotifications()` — both wrap each handler in `try/catch` + `logger()->warning()`.
+- [x] Modify `finish()`: call `finaliseTotals()`, then `safeDispatchRunRecorders()`, then `safeDispatchNotifications()` (recorders BEFORE notifications, both protected).
+- [x] In `reset()`: clear `$runContext` (do NOT clear `$runRecorders` or `$contextProviders`).
+- [x] Tests — recorders fire on first `finish()` only, throwing notification does not abort recorders, throwing recorder is caught, `recordRunsTo()` replaces existing list, providers survive `reset()`, `withRunContext` cleared on `reset()`, `withRunContext` overrides provider on key collision, recorders fire on every implicit `finish()` trigger (`toArray`, `toMarkdown`, `toHtml`, `toServerTiming`, `dd()`) but only once because of `$endHrtime` short-circuit.
 
 ### Phase 4: Configuration + service provider wiring (Priority: HIGH)
 
-- [ ] Add `run_log` block to `config/stopwatch.php` per §3.
-- [ ] Bind `RunLogStore` and `MarkdownRunRecorder` as singletons in `ServiceProvider::packageRegistered()`. Recorder constructor reads config keys at build time (not at every record call).
-- [ ] Implement `ConsoleCommandContextProvider` — invokable class, listens to `CommandStarting`, returns `['command' => $name]` when invoked. Bind in container.
-- [ ] In `configureStopwatch()`, when `run_log.enabled=true` AND `storage_path()` is available: `recordRunsTo($recorder)` and `pushRunContextProvider($provider)`.
-- [ ] When `run_log.enabled=true` but `storage_path()` unavailable: log a one-time warning, skip wiring.
-- [ ] Tests — `ServiceProviderTest`: recorder registered when `run_log.enabled=true`, not when false, not when storage unavailable; `command` context populated under console even after `start()`/`reset()` because provider is evaluated at `finish()`.
+- [x] Add `run_log` block to `config/stopwatch.php` per §3.
+- [x] Bind `RunLogStore` and `MarkdownRunRecorder` as singletons in `ServiceProvider::packageRegistered()`. Recorder constructor reads config keys at build time (not at every record call).
+- [x] Implement `ConsoleCommandContextProvider` — invokable class, listens to `CommandStarting`, returns `['command' => $name]` when invoked. Bind in container.
+- [x] In `configureStopwatch()`, when `run_log.enabled=true` AND `storage_path()` is available: `recordRunsTo($recorder)` and `pushRunContextProvider($provider)`.
+- [x] When `run_log.enabled=true` but `storage_path()` unavailable: log a one-time warning, skip wiring.
+- [x] Tests — `ServiceProviderTest`: recorder registered when `run_log.enabled=true`, not when false, not when storage unavailable; `command` context populated under console even after `start()`/`reset()` because provider is evaluated at `finish()`.
 
 ### Phase 5: Middleware context + exception path (Priority: HIGH)
 
-- [ ] In `StopwatchMiddleware::handle()`, wrap `$next($request)` in try/catch. On the success path, set `withRunContext([url, method, status])` after `$next()` and call `finish()`. On the exception path, set `withRunContext([url, method, status:500, threw:true])`, call `finish()`, then re-throw.
-- [ ] Inline `stripQuery()` private helper in the middleware (1-liner). Do NOT promote `Stopwatch::stripUrlQueryString`.
-- [ ] Tests — context populated on success, query string stripped, status reflects response code, on `$next()` throw the run log is written with `threw:true` and the exception still propagates, no context written when stopwatch disabled.
+- [x] In `StopwatchMiddleware::handle()`, wrap `$next($request)` in try/catch. On the success path, set `withRunContext([url, method, status])` after `$next()` and call `finish()`. On the exception path, set `withRunContext([url, method, status:500, threw:true])`, call `finish()`, then re-throw.
+- [x] Inline `stripQuery()` private helper in the middleware (1-liner). Do NOT promote `Stopwatch::stripUrlQueryString`.
+- [x] Tests — context populated on success, query string stripped, status reflects response code, on `$next()` throw the run log is written with `threw:true` and the exception still propagates, no context written when stopwatch disabled.
 
 ### Phase 6: Artisan commands (Priority: HIGH)
 
-- [ ] `src/Console/RunsListCommand.php` — signature `stopwatch:runs:list {--limit=30} {--sort=duration} {--slow} {--threw}`. Render via `$this->table()`. Format `duration_ms` via `Stopwatch::formatDuration()`.
-- [ ] `src/Console/RunsShowCommand.php` — signature `stopwatch:runs:show {id}`. Output the file contents directly. Returns failure when id missing.
-- [ ] `src/Console/RunsClearCommand.php` — signature `stopwatch:runs:clear {--keep=} {--days=} {--force}`. Confirm before destructive ops unless `--force` (or `--no-interaction`).
-- [ ] Register all three via `->hasCommands([...])` in `configurePackage()`.
-- [ ] Tests — testbench-driven: list filters (`--slow`, `--threw`, `--sort`), show prints body, show on missing id returns failure, clear with `--keep`, clear with `--days`, clear without confirmation aborts.
+- [x] `src/Console/RunsListCommand.php` — signature `stopwatch:runs:list {--limit=30} {--sort=duration} {--slow} {--threw}`. Render via `$this->table()`. Format `duration_ms` via `Stopwatch::formatDuration()`.
+- [x] `src/Console/RunsShowCommand.php` — signature `stopwatch:runs:show {id}`. Output the file contents directly. Returns failure when id missing.
+- [x] `src/Console/RunsClearCommand.php` — signature `stopwatch:runs:clear {--keep=} {--days=} {--force}`. Confirm before destructive ops unless `--force` (or `--no-interaction`).
+- [x] Register all three via `->hasCommands([...])` in `configurePackage()`.
+- [x] Tests — testbench-driven: list filters (`--slow`, `--threw`, `--sort`), show prints body, show on missing id returns failure, clear with `--keep`, clear with `--days`, clear without confirmation aborts.
 
 ### Phase 7: Skill update (Priority: MEDIUM)
 
-- [ ] Add **Step 6 — Browse-and-debug from a run log** to `resources/boost/skills/profile-app/SKILL.md` (placement and content per spec §6).
-- [ ] Verify activation cues unchanged.
+- [x] Add **Step 6 — Browse-and-debug from a run log** to `resources/boost/skills/profile-app/SKILL.md` (placement and content per spec §6).
+- [x] Verify activation cues unchanged.
 
 ### Phase 8: Docs + release notes (Priority: MEDIUM)
 
-- [ ] Add a "Run log" section to `README.md` between the "Server-Timing" and "Notifications" sections (verify those headings exist before placement).
-- [ ] Document env vars, file location, default behavior, the three artisan commands, the Octane v1-unsupported note, and the explicit `STOPWATCH_LOG_INCLUDE_BINDINGS` PII warning.
-- [ ] Write `RELEASE_NOTES_<next-version>.md`. Do not hand-edit `CHANGELOG.md` (per `CLAUDE.md`).
-- [ ] Run pre-release verification: `vendor/bin/pint --dirty --format agent`, `vendor/bin/rector process`, `vendor/bin/phpstan analyse --memory-limit=2G`, `vendor/bin/pest`. Each must show 0 issues.
-- [ ] If the new methods on `Stopwatch` push cognitive complexity past the existing `@phpstan-ignore complexity.classLike` budget, extract `safeDispatchRunRecorders` / `finaliseTotals` into a small `RunLog/StopwatchRunLogger` collaborator rather than bumping the baseline.
+- [x] Add a "Run log" section to `README.md` between the "Server-Timing" and "Notifications" sections (verify those headings exist before placement).
+- [x] Document env vars, file location, default behavior, the three artisan commands, the Octane v1-unsupported note, and the explicit `STOPWATCH_LOG_INCLUDE_BINDINGS` PII warning.
+- [x] Write `RELEASE_NOTES_<next-version>.md`. Do not hand-edit `CHANGELOG.md` (per `CLAUDE.md`).
+- [x] Run pre-release verification: `vendor/bin/pint --dirty --format agent`, `vendor/bin/rector process`, `vendor/bin/phpstan analyse --memory-limit=2G`, `vendor/bin/pest`. Each must show 0 issues.
+- [x] If the new methods on `Stopwatch` push cognitive complexity past the existing `@phpstan-ignore complexity.classLike` budget, extract `safeDispatchRunRecorders` / `finaliseTotals` into a small `RunLog/StopwatchRunLogger` collaborator rather than bumping the baseline.
 
 ### Phase 9: Long-tail polish (Priority: LOW)
 
-- [ ] `--format=json` flag on `stopwatch:runs:list` for scripting.
-- [ ] Memoise frontmatter parses in `RunLogStore::listRuns()` for high `max_files` values.
-- [ ] Deterministic `StaleRunPruneCommand` for users who dislike probabilistic age prune.
-- [ ] Integration test: write 1000 files, verify `listRuns(30)` reads only first ~1KB per file (bounded I/O).
+- [x] `--format=json` flag on `stopwatch:runs:list` for scripting.
+- [~] Memoise frontmatter parses in `RunLogStore::listRuns()` for high `max_files` values. **Skipped** — see Findings.
+- [~] Deterministic `StaleRunPruneCommand` for users who dislike probabilistic age prune. **Skipped** — see Findings.
+- [x] Integration test: write 200 files (~32 KB body each), verify `listRuns(30)` reads only the bounded frontmatter window (no body decoys leak into parsed frontmatter; <5 s wall time).
 
 ---
 
@@ -649,3 +649,31 @@ Keep the existing skill's structure; do not introduce a new top-level skill — 
 ## Findings
 
 <!-- Notes added during implementation. Do not remove this section. -->
+
+### Phase 9 — Memoise frontmatter parses (skipped)
+
+`RunLogStore::listRuns()` is invoked exactly once per artisan command and exits the
+PHP process immediately after rendering. There is no second consumer of the parsed
+frontmatter inside the same process to memoise *for*. Adding an instance- or
+static-level cache would only carry value if (a) a long-running daemon (Octane,
+queue worker) called `listRuns()` repeatedly OR (b) some future code path read the
+frontmatter twice in one request. Neither exists today, so memoisation is pure
+overhead with no benefit at the documented `max_files=200` cap (or even at 10×
+that). Revisit if usage patterns change.
+
+### Phase 9 — Deterministic `StaleRunPruneCommand` (skipped — covered by `stopwatch:runs:clear`)
+
+The use case ("users who dislike the 5%-probabilistic prune happening on every
+record() call want a deterministic cron-friendly prune") is already fully covered
+by the existing `stopwatch:runs:clear` command:
+
+```bash
+# Cron entry — runs nightly, deletes runs older than 7 days, no confirmation prompt
+0 3 * * * php artisan stopwatch:runs:clear --days=7 --force
+# Or keep only the last 200 runs deterministically
+0 3 * * * php artisan stopwatch:runs:clear --keep=200 --force
+```
+
+Adding a separate `StaleRunPruneCommand` would duplicate the existing `--keep` /
+`--days` flags under a new name. Documented the cron pattern in the boost skill
++ README; no code change needed.

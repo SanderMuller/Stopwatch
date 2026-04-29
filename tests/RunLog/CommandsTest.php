@@ -2,8 +2,10 @@
 
 namespace SanderMuller\Stopwatch\Tests\RunLog;
 
+use Illuminate\Contracts\Console\Kernel;
 use SanderMuller\Stopwatch\RunLog\RunLogStore;
 use SanderMuller\Stopwatch\Tests\TestCase;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 final class CommandsTest extends TestCase
 {
@@ -56,6 +58,48 @@ final class CommandsTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_list_with_format_json_emits_parseable_array(): void
+    {
+        $store = $this->app->make(RunLogStore::class);
+        $store->write('01HZAA0000000000000000000A', $this->fixture(['url' => '/admin/users', 'duration_ms' => 487]));
+        $store->write('01HZBB0000000000000000000A', $this->fixture(['url' => '/api/products', 'duration_ms' => 120]));
+
+        $output = $this->captureCommand('stopwatch:runs:list', ['--format' => 'json']);
+
+        /** @var mixed $decoded */
+        $decoded = json_decode($output, associative: true);
+        self::assertIsArray($decoded);
+        self::assertCount(2, $decoded);
+        self::assertSame('01HZAA0000000000000000000A', $decoded[0]['id']);
+        self::assertSame(487, $decoded[0]['frontmatter']['duration_ms']);
+        self::assertSame('/admin/users', $decoded[0]['frontmatter']['url']);
+    }
+
+    public function test_list_with_format_json_emits_empty_array_when_no_runs(): void
+    {
+        // No runs written. JSON output must still be parseable so scripts piping
+        // into `jq` don't blow up.
+        $output = $this->captureCommand('stopwatch:runs:list', ['--format' => 'json']);
+
+        /** @var mixed $decoded */
+        $decoded = json_decode($output, associative: true);
+        self::assertSame([], $decoded);
+    }
+
+    public function test_list_with_format_json_combines_with_filters(): void
+    {
+        $store = $this->app->make(RunLogStore::class);
+        $store->write('01HZAA0000000000000000000A', $this->fixture(['url' => '/slow', 'exceeds_slow_threshold' => true]));
+        $store->write('01HZBB0000000000000000000A', $this->fixture(['url' => '/fast', 'exceeds_slow_threshold' => false]));
+
+        $output = $this->captureCommand('stopwatch:runs:list', ['--format' => 'json', '--slow' => true]);
+
+        /** @var array<int, array{frontmatter: array{url: string}}> $decoded */
+        $decoded = (array) json_decode($output, associative: true);
+        self::assertCount(1, $decoded);
+        self::assertSame('/slow', $decoded[0]['frontmatter']['url']);
+    }
+
     public function test_list_with_threw_filter_excludes_clean_runs(): void
     {
         $store = $this->app->make(RunLogStore::class);
@@ -66,6 +110,122 @@ final class CommandsTest extends TestCase
             ->expectsOutputToContain('/crashed')
             ->doesntExpectOutputToContain('/clean')
             ->assertSuccessful();
+    }
+
+    public function test_list_surfaces_shortened_exception_class_for_threw_runs(): void
+    {
+        $store = $this->app->make(RunLogStore::class);
+        $store->write('01HZAA0000000000000000000A', $this->fixture([
+            'url' => '/checkout',
+            'threw' => true,
+            'exception_class' => 'Illuminate\\Validation\\ValidationException',
+        ]));
+
+        $this->artisan('stopwatch:runs:list')
+            // Class is shortened to its basename so the table column doesn't blow out.
+            ->expectsOutputToContain('ValidationException')
+            ->doesntExpectOutputToContain('Illuminate\\Validation\\ValidationException')
+            ->assertSuccessful();
+    }
+
+    public function test_list_omits_exception_class_for_clean_runs(): void
+    {
+        $store = $this->app->make(RunLogStore::class);
+        $store->write('01HZAA0000000000000000000A', $this->fixture(['url' => '/healthy']));
+
+        $this->artisan('stopwatch:runs:list')
+            ->doesntExpectOutputToContain('Exception')
+            ->assertSuccessful();
+    }
+
+    public function test_list_with_exception_class_filter_matches_short_name(): void
+    {
+        $store = $this->app->make(RunLogStore::class);
+        $store->write('01HZAA0000000000000000000A', $this->fixture([
+            'url' => '/checkout',
+            'threw' => true,
+            'exception_class' => 'Illuminate\\Validation\\ValidationException',
+        ]));
+        $store->write('01HZBB0000000000000000000A', $this->fixture([
+            'url' => '/error',
+            'threw' => true,
+            'exception_class' => 'RuntimeException',
+        ]));
+
+        // Short-name match against the trailing namespace segment.
+        $output = $this->captureCommand('stopwatch:runs:list', [
+            '--format' => 'json',
+            '--exception-class' => 'ValidationException',
+        ]);
+
+        /** @var array<int, array{id: string}> $decoded */
+        $decoded = (array) json_decode($output, associative: true);
+        self::assertCount(1, $decoded);
+        self::assertSame('01HZAA0000000000000000000A', $decoded[0]['id']);
+    }
+
+    public function test_list_with_exception_class_filter_matches_fqcn(): void
+    {
+        $store = $this->app->make(RunLogStore::class);
+        $store->write('01HZAA0000000000000000000A', $this->fixture([
+            'threw' => true,
+            'exception_class' => 'Illuminate\\Validation\\ValidationException',
+        ]));
+
+        $output = $this->captureCommand('stopwatch:runs:list', [
+            '--format' => 'json',
+            '--exception-class' => 'Illuminate\\Validation\\ValidationException',
+        ]);
+
+        /** @var array<int, array{id: string}> $decoded */
+        $decoded = (array) json_decode($output, associative: true);
+        self::assertCount(1, $decoded);
+    }
+
+    public function test_list_with_ctx_filter_excludes_non_matching(): void
+    {
+        $store = $this->app->make(RunLogStore::class);
+        $store->write('01HZAA0000000000000000000A', $this->fixture([
+            'url' => '/admin/users',
+            'ctx_tenant_id' => 'acme',
+        ]));
+        $store->write('01HZBB0000000000000000000A', $this->fixture([
+            'url' => '/admin/users',
+            'ctx_tenant_id' => 'other-corp',
+        ]));
+
+        $output = $this->captureCommand('stopwatch:runs:list', [
+            '--format' => 'json',
+            '--ctx' => ['tenant_id=acme'],
+        ]);
+
+        /** @var array<int, array{id: string}> $decoded */
+        $decoded = (array) json_decode($output, associative: true);
+        self::assertCount(1, $decoded);
+        self::assertSame('01HZAA0000000000000000000A', $decoded[0]['id']);
+    }
+
+    public function test_list_with_multiple_ctx_filters_all_must_match(): void
+    {
+        $store = $this->app->make(RunLogStore::class);
+        $store->write('01HZAA0000000000000000000A', $this->fixture([
+            'ctx_tenant_id' => 'acme',
+            'ctx_user_id' => '42',
+        ]));
+        $store->write('01HZBB0000000000000000000A', $this->fixture([
+            'ctx_tenant_id' => 'acme',
+            'ctx_user_id' => '99',
+        ]));
+
+        $output = $this->captureCommand('stopwatch:runs:list', [
+            '--format' => 'json',
+            '--ctx' => ['tenant_id=acme', 'user_id=42'],
+        ]);
+
+        /** @var array<int, array{id: string}> $decoded */
+        $decoded = (array) json_decode($output, associative: true);
+        self::assertCount(1, $decoded);
+        self::assertSame('01HZAA0000000000000000000A', $decoded[0]['id']);
     }
 
     public function test_show_prints_run_contents(): void
@@ -130,6 +290,22 @@ final class CommandsTest extends TestCase
 
         self::assertNull($store->getRunPath($oldId));
         self::assertNotNull($store->getRunPath($newId));
+    }
+
+    /**
+     * Run an artisan command via Laravel's kernel and return its raw stdout. Used by
+     * the JSON-flag tests because the `expectsOutputToContain` matcher only checks
+     * substrings, but JSON parsing requires the full output stream.
+     *
+     * @param array<string, scalar|null> $parameters
+     */
+    private function captureCommand(string $command, array $parameters = []): string
+    {
+        $kernel = $this->app->make(Kernel::class);
+        $output = new BufferedOutput();
+        $kernel->call($command, $parameters, $output);
+
+        return $output->fetch();
     }
 
     private function ulidAt(int $msTimestamp): string

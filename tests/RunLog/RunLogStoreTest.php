@@ -207,6 +207,68 @@ final class RunLogStoreTest extends TestCase
         self::assertNull($this->store->getRunPath($fiveDayId));
     }
 
+    public function test_list_runs_reads_frontmatter_larger_than_4kb(): void
+    {
+        // Build a frontmatter that's between the old 4096-byte and new 8192-byte read window
+        // so we exercise the bumped reader limit. ~6KB total, all valid `key: value` lines.
+        $lines = ['---', 'duration_ms: 487'];
+        $padding = str_repeat('x', 80);  // 80 chars/line × ~70 lines ≈ 5600 bytes of frontmatter
+        for ($i = 0; $i < 70; $i++) {
+            $lines[] = "ctx_pad_{$i}: {$padding}";
+        }
+        $lines[] = '---';
+        $lines[] = '';
+        $lines[] = '# Stopwatch profile';
+        $lines[] = 'body';
+
+        $contents = implode("\n", $lines);
+        // Sanity: the frontmatter close fence must sit beyond the OLD 4096-byte window
+        // for this regression test to actually exercise the bump.
+        $closingAt = strpos($contents, "\n---\n");
+        self::assertNotFalse($closingAt);
+        self::assertGreaterThan(4096, $closingAt, 'fixture must straddle the old read limit');
+        self::assertLessThan(8192, $closingAt, 'fixture must fit inside the new read limit');
+
+        $this->store->write('01HZBIG0000000000000000000', $contents);
+
+        $runs = $this->store->listRuns();
+
+        self::assertCount(1, $runs);
+        self::assertSame(487, $runs[0]['frontmatter']['duration_ms']);
+        self::assertSame($padding, $runs[0]['frontmatter']['ctx_pad_69']);
+    }
+
+    public function test_list_runs_io_is_bounded_to_frontmatter_window_at_scale(): void
+    {
+        // 200 files with a small frontmatter (~200 bytes) but a huge body (~32 KB) that
+        // contains decoy `body_marker: should_not_appear` lines past the closing fence.
+        // If the reader read past the frontmatter close, those decoy keys would be
+        // parsed as frontmatter pairs. Listing must NEVER pick up `body_marker`.
+        $bodyDecoy = str_repeat("body_marker: should_not_appear\n", 1024);  // ~32 KB
+        $count = 200;
+
+        for ($i = 0; $i < $count; $i++) {
+            $this->store->write(
+                $this->ulidAt(time() * 1000 - $i),
+                $this->fixture(['duration_ms' => $i, 'url' => "/path/{$i}"]) . "\n" . $bodyDecoy,
+            );
+        }
+
+        $startedAt = hrtime(true);
+        $runs = $this->store->listRuns(max: 30);
+        $elapsedMs = (hrtime(true) - $startedAt) / 1_000_000;
+
+        self::assertCount(30, $runs);
+        foreach ($runs as $row) {
+            self::assertArrayNotHasKey('body_marker', $row['frontmatter']);
+        }
+
+        // Listing 200 files at 32 KB each totals ~6 MB on disk. Bounded I/O reads at
+        // most ~8 KB × 200 = 1.6 MB, so well under a second on any modern dev machine.
+        // Generous 5s budget guards against truly broken bounding without flaking.
+        self::assertLessThan(5000, $elapsedMs, 'listRuns should be bounded by the frontmatter read window, not by total file size');
+    }
+
     public function test_prune_by_age_falls_back_to_mtime_for_non_ulid_filenames(): void
     {
         // Filename intentionally not 26 chars — exercises the mtime fallback path.

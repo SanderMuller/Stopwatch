@@ -17,13 +17,20 @@ final class Frontmatter
 {
     /**
      * @param array<string, scalar|null> $values
+     * @param list<string> $extraLines pre-rendered `key: value` lines (e.g. `ctx_*` promotions
+     *                                 already encoded via {@see ScalarCodec::encodeStringSafe()}).
+     *                                 Inserted between the typed values and the closing fence.
      */
-    public static function format(array $values): string
+    public static function format(array $values, array $extraLines = []): string
     {
         $lines = ['---'];
 
         foreach ($values as $key => $value) {
             $lines[] = $key . ': ' . ScalarCodec::encode($value);
+        }
+
+        foreach ($extraLines as $extraLine) {
+            $lines[] = $extraLine;
         }
 
         $lines[] = '---';

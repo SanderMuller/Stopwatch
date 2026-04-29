@@ -168,6 +168,63 @@ return [
         'detail' => env('STOPWATCH_LOG_DETAIL', 'summary'),
         'include_bindings' => (bool) env('STOPWATCH_LOG_INCLUDE_BINDINGS', false),
         'skip_empty' => (bool) env('STOPWATCH_LOG_SKIP_EMPTY', true),
+
+        /*
+        |----------------------------------------------------------------------
+        | Run Log — Exception Collector
+        |----------------------------------------------------------------------
+        |
+        | When enabled, captured Throwables (StopwatchMiddleware sets these
+        | automatically on the request crash path; queue/command users can
+        | call $stopwatch->withTransientContext(Stopwatch::TRANSIENT_EXCEPTION,
+        | $e) themselves) are persisted as exception_class / exception_file /
+        | exception_line frontmatter fields plus a ## Exception body section
+        | with a top-N stack trace.
+        |
+        | Privacy:
+        |  - `message` is OFF by default — exception messages frequently quote
+        |    user input (validation errors). Turn on once you've confirmed your
+        |    app's exception messages are safe to persist.
+        |  - `mask_message_matching` patterns: a leading `/` is preg, otherwise
+        |    substring. Each match is replaced with `***`. Applied AFTER cap.
+        |  - Trace `args` are NEVER persisted, regardless of options.
+        |
+        */
+        'collect_exceptions' => (bool) env('STOPWATCH_LOG_COLLECT_EXCEPTIONS', true),
+
+        /*
+        |----------------------------------------------------------------------
+        | Run Log — Laravel Context Collector
+        |----------------------------------------------------------------------
+        |
+        | When enabled, Illuminate\Support\Facades\Context::all() (visible keys
+        | only — hidden context is NEVER read) is captured into a ## Context
+        | body section. Promoted keys also appear in frontmatter as `ctx_<key>`
+        | so the list view can sort/filter on them.
+        |
+        | Type policy with default `allow=[]`: only SCALAR visible keys are
+        | captured. Rich objects (Eloquent models, etc.) must be explicitly
+        | listed in `allow` to opt in.
+        |
+        */
+        'collect_context' => (bool) env('STOPWATCH_LOG_COLLECT_CONTEXT', false),
+
+        'options' => [
+            'exceptions' => [
+                'message' => (bool) env('STOPWATCH_LOG_EXCEPTIONS_MESSAGE', false),
+                'message_max_chars' => (int) env('STOPWATCH_LOG_EXCEPTIONS_MESSAGE_MAX_CHARS', 500),
+                'mask_message_matching' => [],   // list<string> regex|substring patterns
+                'trace_frames' => (int) env('STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES', 10),
+                'trace_exclude_paths' => [],     // list<string> substring matches against frame.file
+            ],
+            'context' => [
+                'allow' => [],                   // list<string> — empty = all visible scalar keys
+                'deny' => [],                    // list<string> — applied after allow
+                'mask' => [],                    // list<string> — replace value with *** but keep key
+                'frontmatter_keys' => [],        // list<string> — promote scalar values to frontmatter as `ctx_<key>`
+                'value_max_bytes' => (int) env('STOPWATCH_LOG_CONTEXT_VALUE_MAX_BYTES', 4096),
+            ],
+        ],
     ],
 
 ];

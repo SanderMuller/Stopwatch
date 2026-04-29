@@ -32,7 +32,7 @@ final readonly class StopwatchMiddleware
             /** @var Response $response */
             $response = $next($request);
         } catch (Throwable $throwable) {
-            $this->finishWithContext($request, status: 500, threw: true);
+            $this->captureCrash($request, $throwable);
 
             throw $throwable;
         }
@@ -43,6 +43,21 @@ final readonly class StopwatchMiddleware
         }
 
         return $response;
+    }
+
+    /**
+     * Hand the Throwable to recorders via transient context — the run-log recorder reads
+     * it during the {@see Stopwatch::finish()} dispatch chain to populate `exception_*`
+     * frontmatter fields and the `## Exception` body section. Per-run state is cleared
+     * automatically post-dispatch.
+     */
+    private function captureCrash(Request $request, Throwable $throwable): void
+    {
+        if ($this->stopwatch->enabled() && $this->stopwatch->started()) {
+            $this->stopwatch->withTransientContext(Stopwatch::TRANSIENT_EXCEPTION, $throwable);
+        }
+
+        $this->finishWithContext($request, status: 500, threw: true);
     }
 
     private function finishWithContext(Request $request, int $status, bool $threw): void

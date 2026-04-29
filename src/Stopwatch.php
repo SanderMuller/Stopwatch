@@ -123,6 +123,20 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     /** @var list<callable(self): array<string, scalar|null>> */
     private array $contextProviders = [];
 
+    /**
+     * Transient (object-bearing) per-run state — pass-through channel between callers
+     * and recorders for values that are not safe to persist directly via {@see $runContext}
+     * (which is constrained to scalars to keep the run-log frontmatter parser simple).
+     *
+     * Cleared on {@see reset()} and at the end of {@see finish()} (same lifecycle as {@see $runContext}).
+     *
+     * @var array<string, mixed>
+     */
+    private array $transientContext = [];
+
+    /** Magic-string-free key for the captured exception; used by middleware + recorders. */
+    public const string TRANSIENT_EXCEPTION = 'exception';
+
     private function __construct(
         private readonly Clock $clock = new SystemClock(),
     ) {
@@ -197,6 +211,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->runStartMemory = null;
 
         $this->runContext = [];
+        $this->transientContext = [];
 
         if ($this->trackingMemory) {
             $this->lastMemoryUsage = memory_get_usage();
@@ -667,6 +682,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         // Clear per-run context AFTER dispatch so providers + manually-set context
         // both reach the recorder, then a fresh run starts with no leftover state.
         $this->runContext = [];
+        $this->transientContext = [];
 
         return $this;
     }
@@ -985,6 +1001,32 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         }
 
         return [...$resolved, ...$this->runContext];
+    }
+
+    /**
+     * Stash an object-bearing value for the current run that recorders can read but
+     * which is *never* persisted via the standard scalar-only run-log frontmatter.
+     * Typical use: a captured `Throwable` whose class/file/line/message the recorder
+     * extracts and serialises in its own format.
+     *
+     * Cleared on {@see reset()} and at the end of {@see finish()} (same lifecycle as
+     * per-run context). Keys are intended to be small constant strings such as
+     * {@see self::TRANSIENT_EXCEPTION}.
+     */
+    public function withTransientContext(string $key, mixed $value): self
+    {
+        $this->transientContext[$key] = $value;
+
+        return $this;
+    }
+
+    /**
+     * Retrieve a transient context value set via {@see withTransientContext()}.
+     * Returns `null` when the key is not present (no `KeyNotFound`-style exception).
+     */
+    public function transientContext(string $key): mixed
+    {
+        return $this->transientContext[$key] ?? null;
     }
 
     public function toLog(?string $title = null, ?string $level = null): self

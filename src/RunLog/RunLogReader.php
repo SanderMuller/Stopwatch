@@ -11,8 +11,13 @@ namespace SanderMuller\Stopwatch\RunLog;
  */
 final readonly class RunLogReader
 {
-    /** Cap on bytes read from each file when parsing frontmatter for listings. */
-    private const int FRONTMATTER_READ_BYTES = 4096;
+    /**
+     * Cap on bytes read from each file when parsing frontmatter for listings.
+     * Bumped from 4096 → 8192 to accommodate up to ~16 promoted `ctx_*` keys
+     * (each capped at 256 chars after encoding) without truncating the close-fence.
+     * Cheap on first-block I/O.
+     */
+    private const int FRONTMATTER_READ_BYTES = 8192;
 
     public function __construct(
         private string $path,

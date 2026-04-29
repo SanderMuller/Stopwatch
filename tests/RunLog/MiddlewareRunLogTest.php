@@ -3,10 +3,17 @@
 namespace SanderMuller\Stopwatch\Tests\RunLog;
 
 use RuntimeException;
+use SanderMuller\Stopwatch\RunLog\ContextCapture;
+use SanderMuller\Stopwatch\RunLog\ContextCaptureRenderer;
+use SanderMuller\Stopwatch\RunLog\ExceptionDetail;
+use SanderMuller\Stopwatch\RunLog\ExceptionDetailRenderer;
+use SanderMuller\Stopwatch\RunLog\MarkdownRunRecorder;
+use SanderMuller\Stopwatch\RunLog\RunLogStore;
 use SanderMuller\Stopwatch\RunLog\RunRecorder;
 use SanderMuller\Stopwatch\Stopwatch;
 use SanderMuller\Stopwatch\StopwatchMiddleware;
 use SanderMuller\Stopwatch\Tests\TestCase;
+use Throwable;
 
 final class MiddlewareRunLogTest extends TestCase
 {
@@ -60,6 +67,90 @@ final class MiddlewareRunLogTest extends TestCase
         self::assertSame(500, $captured()['status']);
     }
 
+    public function test_middleware_sets_transient_exception_context_before_recorder_dispatch(): void
+    {
+        $capturedException = null;
+        $recorder = new class ($capturedException) implements RunRecorder {
+            public function __construct(public ?Throwable &$captured) {}
+
+            public function record(Stopwatch $stopwatch, array $context): void
+            {
+                $value = $stopwatch->transientContext(Stopwatch::TRANSIENT_EXCEPTION);
+                $this->captured = $value instanceof Throwable ? $value : null;
+            }
+        };
+
+        $this->app->make(Stopwatch::class)->recordRunsTo($recorder);
+
+        $this->app->make('router')
+            ->middleware(StopwatchMiddleware::autoStart())
+            ->get('/profile-throws-transient', static function (): string {
+                stopwatch()->checkpoint('Before crash');
+
+                throw new RuntimeException('controller boom');
+            });
+
+        try {
+            $this->withoutExceptionHandling()->get('/profile-throws-transient');
+        } catch (RuntimeException) {
+            // expected
+        }
+
+        self::assertInstanceOf(RuntimeException::class, $recorder->captured);
+        self::assertSame('controller boom', $recorder->captured->getMessage());
+    }
+
+    public function test_middleware_run_log_persists_exception_class_to_disk(): void
+    {
+        $tempDir = sys_get_temp_dir() . '/stopwatch-mw-ec-' . bin2hex(random_bytes(6));
+
+        try {
+            $store = new RunLogStore($tempDir);
+            $recorder = new MarkdownRunRecorder(
+                store: $store,
+                minDurationMs: null,
+                skipEmpty: false,
+                collectExceptions: true,
+                exceptionRenderer: new ExceptionDetailRenderer(new ExceptionDetail(messageEnabled: true)),
+                collectContext: false,
+                contextCapture: new ContextCapture(),
+                contextRenderer: new ContextCaptureRenderer(),
+            );
+
+            $this->app->make(Stopwatch::class)->recordRunsTo($recorder);
+
+            $this->app->make('router')
+                ->middleware(StopwatchMiddleware::autoStart())
+                ->get('/profile-disk-crash', static function (): string {
+                    stopwatch()->checkpoint('Before crash');
+
+                    throw new RuntimeException('disk-bound boom');
+                });
+
+            try {
+                $this->withoutExceptionHandling()->get('/profile-disk-crash');
+            } catch (RuntimeException) {
+                // expected
+            }
+
+            $files = glob($tempDir . '/*.md') ?: [];
+            self::assertCount(1, $files);
+
+            $contents = (string) file_get_contents($files[0]);
+            self::assertStringContainsString('exception_class: RuntimeException', $contents);
+            self::assertStringContainsString('exception_line:', $contents);
+            self::assertStringContainsString('threw: true', $contents);
+            self::assertStringContainsString('## Exception', $contents);
+            self::assertStringContainsString('- **Message:** disk-bound boom', $contents);
+            // No stringified Throwable object internals — just the persistable subset.
+            self::assertStringNotContainsString('Object#', $contents);
+            self::assertStringNotContainsString('protected:', $contents);
+            self::assertStringNotContainsString('#trace', $contents);
+        } finally {
+            $this->cleanupTempDir($tempDir);
+        }
+    }
+
     public function test_middleware_skips_finish_when_stopwatch_disabled(): void
     {
         $captured = $this->captureContextOnFinish();
@@ -98,5 +189,19 @@ final class MiddlewareRunLogTest extends TestCase
         $this->app->make(Stopwatch::class)->recordRunsTo($recorder);
 
         return static fn (): ?array => $recorder->captured;
+    }
+
+    private function cleanupTempDir(string $tempDir): void
+    {
+        if (! is_dir($tempDir)) {
+            return;
+        }
+
+        foreach (glob($tempDir . '/*') ?: [] as $file) {
+            @unlink($file);
+        }
+
+        @unlink($tempDir . '/.gitignore');
+        @rmdir($tempDir);
     }
 }

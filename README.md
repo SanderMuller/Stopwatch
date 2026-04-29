@@ -382,6 +382,11 @@ Inspect from the command line:
 php artisan stopwatch:runs:list --slow --limit=10
 php artisan stopwatch:runs:show <id>
 php artisan stopwatch:runs:clear              # cleanup when done
+php artisan stopwatch:runs:list --format=json # for scripts piping into jq
+
+# Deterministic cron-friendly prune (replaces the 5%-probabilistic in-process prune):
+#   0 3 * * * php artisan stopwatch:runs:clear --days=7 --force
+#   0 3 * * * php artisan stopwatch:runs:clear --keep=200 --force
 ```
 
 Configuration knobs (env or `config/stopwatch.php` under `run_log`):
@@ -396,10 +401,76 @@ Configuration knobs (env or `config/stopwatch.php` under `run_log`):
 | `STOPWATCH_LOG_DETAIL`             | `summary` | `summary` or `full`. `full` appends per-call SQL and HTTP detail tables |
 | `STOPWATCH_LOG_INCLUDE_BINDINGS`   | `false` | Persist SQL bindings in `full` mode (PII opt-in — leave off unless you need it) |
 | `STOPWATCH_LOG_SKIP_EMPTY`         | `true`  | Skip runs that finished with zero checkpoints                        |
+| `STOPWATCH_LOG_COLLECT_EXCEPTIONS` | `true`  | Capture `Throwable` class/file/line + top-N trace into the run log   |
+| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE` | `false` | Persist `$e->getMessage()` (off by default — messages can leak input) |
+| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE_MAX_CHARS` | `500` | Codepoint cap before `…` is appended                          |
+| `STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES` | `10` | Trace frame cap (`0` omits the trace section)                     |
+| `STOPWATCH_LOG_COLLECT_CONTEXT`    | `false` | Capture `Illuminate\Support\Facades\Context::all()` (visible only)  |
+| `STOPWATCH_LOG_CONTEXT_VALUE_MAX_BYTES` | `4096` | Per-value byte cap for context body cells                      |
 
 Crashed requests still write a run-log file with `threw: true` in the frontmatter, so you can debug exceptions after the fact. Run-log writes never throw — disk failures are logged via `logger()->warning()` and the request completes normally.
 
 > The run log is **Laravel-only** in v1 and is **not supported under Laravel Octane / Swoole** until the stopwatch lifecycle becomes per-request — the singleton's mutable per-run state is not safe for concurrent coroutines.
+
+#### Exception detail and Laravel Context
+
+When `collect_exceptions` is on (default), every crashed request gets two extra fields in frontmatter (`exception_class`, `exception_file`, `exception_line`) plus a `## Exception` body section with a top-N stack trace. Trace `args` are **never** persisted — only `file`, `line`, `class`, `function`, `type`. Wrapped exceptions get one level of `getPrevious()` rendered in a `### Previous` sub-section.
+
+```yaml
+---
+id: 01HZ8K9X4N5P2Q3R4S5T6U7V8W
+url: /admin/users
+threw: true
+exception_class: Illuminate\Validation\ValidationException
+exception_file: app/Http/Controllers/OrderController.php
+exception_line: 142
+---
+```
+
+Set `STOPWATCH_LOG_COLLECT_CONTEXT=true` to capture `Illuminate\Support\Facades\Context` into a `## Context` body section. Hidden context (`Context::addHidden()`) is **never** read. If your app does:
+
+```php
+Context::add('trace_id', (string) Str::ulid());
+Context::add('tenant_id', $tenant->slug);
+```
+
+…you can pivot from a slow run-log entry to the matching `laravel.log` line by `trace_id`. To make a key sortable from `stopwatch:runs:list`, promote it via `config/stopwatch.php`:
+
+```php
+'options' => [
+    'context' => [
+        'frontmatter_keys' => ['trace_id', 'tenant_id'],
+    ],
+],
+```
+
+Promoted scalar values land as `ctx_trace_id` / `ctx_tenant_id` in frontmatter. The encoder is round-trip-safe — string `"01"` survives as the string `"01"`, not the int `1`.
+
+##### Pivoting between run-log and `laravel.log`
+
+Once `trace_id` is promoted, you can find a slow run, copy its trace id, and grep `laravel.log` for the same id (Laravel auto-includes Context in log records via the structured-logging integration):
+
+```bash
+# Find the slowest crashed runs of a specific exception type for a single tenant
+php artisan stopwatch:runs:list --threw --exception-class=ValidationException \
+    --ctx tenant_id=acme --format=json | jq -r '.[] | .frontmatter.ctx_trace_id'
+
+# Then for any returned id:
+grep "01HZ8K9X4N5P2Q3R4S5T6U7V8W" storage/logs/laravel.log
+```
+
+The same `--ctx` flag accepts repeated `key=value` pairs (all must match — AND), and `--exception-class` accepts either the FQCN or the trailing class name.
+
+Array-typed config-only options:
+
+| Config path | Purpose |
+|-------------|---------|
+| `options.exceptions.mask_message_matching` | List of patterns. Leading `/` = preg, otherwise substring; matches replaced with `***`. |
+| `options.exceptions.trace_exclude_paths` | Substring matches against frame.file — hide vendor noise. |
+| `options.context.allow` | Allowlist of context keys. Empty = all visible **scalar** keys (rich objects opt in via explicit allowlist). |
+| `options.context.deny` | Denylist applied after allow. |
+| `options.context.mask` | Replace value with `***` while preserving the key. |
+| `options.context.frontmatter_keys` | Promote scalar values to frontmatter as `ctx_<key>` (sortable from list view). |
 
 ### Manually stop the stopwatch
 

@@ -135,6 +135,11 @@ Inspect from the AI side via the artisan commands — do **not** read the files 
 php artisan stopwatch:runs:list --slow --limit=10
 php artisan stopwatch:runs:show <id>
 php artisan stopwatch:runs:clear              # cleanup when done
+php artisan stopwatch:runs:list --format=json # for scripts piping into jq
+
+# Deterministic cron-friendly prune (replaces the 5%-probabilistic in-process prune):
+#   0 3 * * * php artisan stopwatch:runs:clear --days=7 --force
+#   0 3 * * * php artisan stopwatch:runs:clear --keep=200 --force
 ```
 
 Reading the `show` output:
@@ -144,6 +149,34 @@ Reading the `show` output:
 - Frontmatter `queries_total` >> sum of per-checkpoint queries → significant work happens after the last checkpoint; add a checkpoint near the response return and re-profile.
 - High `h` count → outbound API loop; `full` shows method/URL/status per call.
 - Frontmatter `threw: true` → the request crashed; the profile shows where time went up to the crash point.
+
+**For crashed requests** (`threw: true` in frontmatter), the run log includes the exception class + file:line in the frontmatter and a `## Exception` section in the body with a top-N stack trace. Set `STOPWATCH_LOG_EXCEPTIONS_MESSAGE=true` to also persist `$e->getMessage()` (off by default — messages can leak validation/user input). Bindings/args are NEVER persisted in the trace, regardless of options. The `## Exception` body also walks one level of `getPrevious()` into a `### Previous` sub-section so wrapped exceptions show their underlying cause.
+
+**For correlation with structured logs**, set `STOPWATCH_LOG_COLLECT_CONTEXT=true` to capture `Illuminate\Support\Facades\Context::all()` (visible keys only — hidden Context is never read). The `trace_id` / `tenant_id` / `user_id` you set via `Context::add()` will appear in a `## Context` body section so you can pivot from a slow run to its matching `laravel.log` entry by `trace_id`. To make a key sortable from `stopwatch:runs:list`, promote it via `config/stopwatch.php`:
+
+```php
+'options' => [
+    'context' => [
+        'frontmatter_keys' => ['trace_id', 'tenant_id'],
+    ],
+],
+```
+
+That puts the value in frontmatter as `ctx_trace_id` / `ctx_tenant_id` (round-trip-safe — string `"01"` stays `"01"`, not `1`).
+
+Filter the list view by promoted context (repeatable, all must match) or by exception class (short name or FQCN):
+
+```bash
+php artisan stopwatch:runs:list --ctx tenant_id=acme --ctx user_id=42
+php artisan stopwatch:runs:list --threw --exception-class=ValidationException
+```
+
+To pivot a slow run-log entry to its matching `laravel.log` line, capture the `trace_id` from the run (Laravel auto-propagates Context into structured log records) and grep:
+
+```bash
+ID=$(php artisan stopwatch:runs:list --slow --format=json | jq -r '.[0].frontmatter.ctx_trace_id')
+grep "$ID" storage/logs/laravel.log
+```
 
 **Useful env knobs:**
 
@@ -156,6 +189,23 @@ Reading the `show` output:
 | `STOPWATCH_LOG_DETAIL=full` | Append per-call SQL/HTTP detail tables |
 | `STOPWATCH_LOG_INCLUDE_BINDINGS=true` | Persist SQL bindings (off by default — PII risk) |
 | `STOPWATCH_LOG_SKIP_EMPTY=false` | Log even zero-checkpoint runs (default skips them) |
+| `STOPWATCH_LOG_COLLECT_EXCEPTIONS=false` | Disable exception capture (default on) |
+| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE=true` | Persist `$e->getMessage()` (default off — PII risk) |
+| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE_MAX_CHARS=500` | Cap message length (default 500 codepoints) |
+| `STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES=10` | Trace frame cap (set `0` to omit the trace section) |
+| `STOPWATCH_LOG_COLLECT_CONTEXT=true` | Capture `Context::all()` into the body (default off) |
+| `STOPWATCH_LOG_CONTEXT_VALUE_MAX_BYTES=4096` | Per-value cap for context body cells |
+
+Array-typed knobs (config-only — env can't express arrays cleanly):
+
+| Config path | Purpose |
+|-------------|---------|
+| `options.exceptions.mask_message_matching` | List of patterns. Leading `/` = preg, otherwise substring; matches replaced with `***`. |
+| `options.exceptions.trace_exclude_paths` | Substring matches against frame.file — hide vendor noise. |
+| `options.context.allow` | Allowlist of context keys. Empty = all visible **scalar** keys (rich objects opt in via explicit allowlist). |
+| `options.context.deny` | Denylist applied after allow. |
+| `options.context.mask` | Replace value with `***` while preserving the key. |
+| `options.context.frontmatter_keys` | Promote scalar values to frontmatter as `ctx_<key>` (sortable from list view). |
 
 The run log is **Laravel-only** in v1 and is **not supported under Octane/Swoole** until the stopwatch lifecycle becomes per-request.
 
