@@ -8,6 +8,92 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.8.0](https://github.com/SanderMuller/Stopwatch/compare/v0.7.0...v0.8.0) - 2026-04-29
+
+### Run log: exception detail + Laravel Context
+
+The `0.7.0` run log captured *what happened* (timing, queries, HTTP, memory) and *whether the request crashed* (`threw: true`). `0.8.0` adds two collectors that fill in *what crashed* and *who/what tenant the request belonged to*:
+
+1. **Exception detail** — when `StopwatchMiddleware` catches a `Throwable` on the way out of a request, the recorder persists `exception_class` / `exception_file` / `exception_line` into the YAML frontmatter and a `## Exception` body section with a top-N stack trace. One level of `getPrevious()` is rendered into a `### Previous` sub-section so wrapped exceptions show their underlying cause.
+2. **Laravel Context** — capture `Illuminate\Support\Facades\Context::all()` (visible keys only — hidden context is **never** read) into a `## Context` body section. Promoted scalar keys also land in frontmatter as `ctx_<key>` so `stopwatch:runs:list` can sort/filter on them.
+
+#### Sample frontmatter
+
+```yaml
+---
+id: 01HZ8K9X4N5P2Q3R4S5T6U7V8W
+url: /admin/users
+threw: true
+exception_class: Illuminate\Validation\ValidationException
+exception_file: app/Http/Controllers/OrderController.php
+exception_line: 142
+ctx_trace_id: 01HZULID0000000000000000A
+ctx_tenant_id: acme
+---
+
+```
+#### Knobs
+
+Off-by-default (`STOPWATCH_LOG_RUNS=true` is still required to enable the run log itself):
+
+| Env var                                      | Default | Purpose                                                              |
+|----------------------------------------------|---------|----------------------------------------------------------------------|
+| `STOPWATCH_LOG_COLLECT_EXCEPTIONS`           | `true`  | Capture `Throwable` class/file/line + top-N trace into the run log   |
+| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE`           | `false` | Persist `$e->getMessage()` (off — messages can leak validation/user input) |
+| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE_MAX_CHARS` | `500`   | Codepoint cap (`mb_substr`) before `…` is appended                   |
+| `STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES`      | `10`    | Trace frame cap (`0` omits the trace section)                        |
+| `STOPWATCH_LOG_COLLECT_CONTEXT`              | `false` | Capture `Context::all()` (visible only) into the body                |
+| `STOPWATCH_LOG_CONTEXT_VALUE_MAX_BYTES`      | `4096`  | Per-value byte cap for context body cells                            |
+
+Array-typed knobs are config-only (env can't express arrays cleanly):
+
+| Config path                                  | Purpose |
+|----------------------------------------------|---------|
+| `options.exceptions.mask_message_matching`   | Patterns. Leading `/` = preg, otherwise substring; matches replaced with `***`. Applied AFTER cap. |
+| `options.exceptions.trace_exclude_paths`     | Substring matches against frame.file — hide vendor noise. |
+| `options.context.allow`                      | Allowlist. Empty = all visible **scalar** keys (rich objects opt in via explicit allowlist). |
+| `options.context.deny`                       | Denylist applied after allow. |
+| `options.context.mask`                       | Replace value with `***` while preserving the key. |
+| `options.context.frontmatter_keys`           | Promote scalar values to frontmatter as `ctx_<key>` (sortable from list view). |
+
+#### Privacy stance
+
+- **Trace `args` are NEVER persisted**, regardless of options. Only `file`, `line`, `class`, `function`, `type` from each frame.
+- **File paths never absolute.** A new three-case relativiser emits project-relative paths under `base_path()`, `vendor/<package>/...` paths under any `/vendor/` segment outside the project, or `<external>/<basename>` for unrelated files. Host filesystem layout never leaks.
+- **Exception messages opt-in** — `STOPWATCH_LOG_EXCEPTIONS_MESSAGE=false` by default. When enabled, capped via `mb_substr` (multi-byte safe) and maskable via patterns.
+- **Hidden context never read.** `Context::addHidden(...)` values are excluded by construction.
+- **Context type policy.** With default `allow=[]`, only **scalar** visible keys are captured. Arrays/objects (Eloquent models, etc.) require explicit allowlisting — no auto-leak of rich object internals.
+- **Per-value cap.** Context body values are byte-capped at 4096 (configurable); JSON-encoded for non-scalars; `<unencodable: <gettype>>` placeholder for resources/circular refs.
+- **Bounded frontmatter.** Promoted `ctx_*` lines are capped per-value (256 chars after encoding) and in total (2048 bytes cumulative), so `stopwatch:runs:list` still reads cheaply even with many promoted keys.
+
+#### Round-trip-safe codec for promoted values
+
+Promoted `ctx_*` frontmatter values use a new `ScalarCodec::encodeStringSafe()` path that quotes strings whose unquoted form would be auto-coerced by the existing decoder. `Context::add('user_code', '01')` round-trips as the string `"01"`, not the int `1`. `Context::add('flag', 'true')` round-trips as the string `"true"`, not the bool `true`. The existing typed-field path (`duration_ms: 487` → int `487`) is unchanged.
+
+`RunLogReader::FRONTMATTER_READ_BYTES` was bumped from `4096` to `8192` to accommodate up to ~16 promoted `ctx_*` keys without truncating the close-fence.
+
+#### Public API additions
+
+- `Stopwatch::TRANSIENT_EXCEPTION` constant — magic-string-free key for the transient-context channel.
+- `Stopwatch::withTransientContext(string $key, mixed $value): self` — for caller-side capture (e.g. queued jobs that catch their own exceptions).
+- `Stopwatch::transientContext(string $key): mixed` — recorder-side accessor; returns `null` for missing keys.
+- `RunLog\ExceptionDetail` / `ExceptionDetailRenderer` — pure data builders for `Throwable`-to-shape and shape-to-markdown conversion. `renderData(array)` lets callers render without going through a `Throwable` (useful for synthetic test frames).
+- `RunLog\ContextCapture` / `ContextCaptureRenderer` — Context filtering + rendering pipeline.
+- `RunLog\PathRelativiser::relativise(string)` — three-case path normaliser shared by exception detail.
+- `RunLog\ScalarCodec::encodeStringSafe(scalar|null)` — round-trip-safe encoder for arbitrary user-supplied scalar values.
+- `RunLog\Frontmatter::format(array $values, array $extraLines = [])` — second arg lets callers inject pre-rendered lines (used by ContextCapture for `ctx_*` promotion).
+
+#### List-view filters
+
+`stopwatch:runs:list` gains two new filters that compose with the existing `--slow` / `--threw` / `--limit`:
+
+- `--exception-class=Foo` — keeps only runs whose `exception_class` equals `Foo` exactly OR ends in `\Foo`. So `--exception-class=ValidationException` matches `Illuminate\Validation\ValidationException` without the user typing the full FQCN.
+- `--ctx key=value` — repeatable, AND-semantics. Filters on promoted `ctx_<key>` frontmatter fields. e.g. `--ctx tenant_id=acme --ctx user_id=42`.
+
+These compose with `--format=json` for grep-friendly tooling.
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.7.0...v0.8.0
+
 ## [v0.7.0](https://github.com/SanderMuller/Stopwatch/compare/v0.6.1...v0.7.0) - 2026-04-29
 
 ### Run log
@@ -17,6 +103,7 @@ Persist every finished stopwatch run as a markdown file under `storage/stopwatch
 ```dotenv
 STOPWATCH_LOG_RUNS=true
 
+
 ```
 Each persisted file is plain markdown (the same shape as `stopwatch()->toMarkdown()`) with a YAML frontmatter header (`id`, `recorded_at`, `duration_ms`, `url`, `method`, `status`, `command`, query/HTTP/memory totals, slow-threshold flag) so listing is cheap. Three artisan commands are registered:
 
@@ -24,6 +111,7 @@ Each persisted file is plain markdown (the same shape as `stopwatch()->toMarkdow
 php artisan stopwatch:runs:list --slow --limit=10
 php artisan stopwatch:runs:show <id>
 php artisan stopwatch:runs:clear              # cleanup when done
+
 
 ```
 Filter the list with `--slow` (only runs that exceeded `slow_threshold`) or `--threw` (only runs whose request crashed mid-flight). The `clear` command supports `--keep=N`, `--days=N`, and `--force` (all destructive paths prompt for confirmation unless `--force` is passed or the shell is non-interactive).
@@ -101,6 +189,7 @@ If you use [`laravel/boost`](https://github.com/laravel/boost), the skill is aut
       ->when($trackQueries, fn ($sw) => $sw->withQueryTracking())
       ->unless(app()->runningUnitTests(), fn ($sw) => $sw->withHttpTracking())
       ->start();
+  
   
   
   
