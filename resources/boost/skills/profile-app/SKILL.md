@@ -119,6 +119,46 @@ Channels are configured in `config/stopwatch.php`:
 
 Implement `StopwatchNotificationChannel` for Slack, PagerDuty, etc.
 
+### 6. Browse-and-debug from a run log
+
+When you can't easily wire `stopwatch()->render()` into the page (a JSON API, an SPA backend, a queued job, or you need to compare slow requests across many reproductions), turn on the run log:
+
+```
+STOPWATCH_LOG_RUNS=true
+```
+
+Then ask the user to reproduce the slow path in their browser or CLI. Each finished run is persisted to `storage/stopwatch/runs/<ULID>.md` — markdown body identical to `toMarkdown()`, with a YAML frontmatter block on top so the list command can sort cheaply.
+
+Inspect from the AI side via the artisan commands — do **not** read the files directly:
+
+```bash
+php artisan stopwatch:runs:list --slow --limit=10
+php artisan stopwatch:runs:show <id>
+php artisan stopwatch:runs:clear              # cleanup when done
+```
+
+Reading the `show` output:
+
+- One row dominating delta-share → hot spot.
+- High `q` count on one row → N+1 candidate. Flip to `STOPWATCH_LOG_DETAIL=full` and reproduce again to see the actual SQL.
+- Frontmatter `queries_total` >> sum of per-checkpoint queries → significant work happens after the last checkpoint; add a checkpoint near the response return and re-profile.
+- High `h` count → outbound API loop; `full` shows method/URL/status per call.
+- Frontmatter `threw: true` → the request crashed; the profile shows where time went up to the crash point.
+
+**Useful env knobs:**
+
+| Var | Purpose |
+|-----|---------|
+| `STOPWATCH_LOG_RUNS=true` | Enable the run log |
+| `STOPWATCH_LOG_MIN_DURATION_MS=50` | Skip fast runs (default 50ms; matches `slow_threshold`) |
+| `STOPWATCH_LOG_MAX_FILES=200` | Keep at most N files; older are pruned automatically |
+| `STOPWATCH_LOG_MAX_AGE_DAYS=7` | Soft age cap (probabilistic prune) |
+| `STOPWATCH_LOG_DETAIL=full` | Append per-call SQL/HTTP detail tables |
+| `STOPWATCH_LOG_INCLUDE_BINDINGS=true` | Persist SQL bindings (off by default — PII risk) |
+| `STOPWATCH_LOG_SKIP_EMPTY=false` | Log even zero-checkpoint runs (default skips them) |
+
+The run log is **Laravel-only** in v1 and is **not supported under Octane/Swoole** until the stopwatch lifecycle becomes per-request.
+
 ## Guidelines
 
 - **Keep it off when not in use.** Set `STOPWATCH_ENABLED=false` in production unless you've intentionally wired the middleware or notifications. Disabled mode makes every call a near-zero no-op.

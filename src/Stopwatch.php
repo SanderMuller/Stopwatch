@@ -96,6 +96,33 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     private bool $enabled = true;
 
+    /**
+     * Whole-run accumulators. Unlike {@see $queryCount} / {@see $httpCount} (which reset every checkpoint),
+     * these track totals across the entire run from {@see reset()} to {@see finish()} so the run log can
+     * report work that happened after the last checkpoint. They are not exposed via {@see toMarkdown()} —
+     * see {@see finalRunTotals()}.
+     */
+    private int $totalQueryCount = 0;
+
+    private float $totalQueryDurationMs = 0;
+
+    private int $totalHttpCount = 0;
+
+    private float $totalHttpDurationMs = 0;
+
+    private int $totalMemoryDelta = 0;
+
+    private ?int $runStartMemory = null;
+
+    /** @var list<RunLog\RunRecorder> */
+    private array $runRecorders = [];
+
+    /** @var array<string, scalar|null> */
+    private array $runContext = [];
+
+    /** @var list<callable(self): array<string, scalar|null>> */
+    private array $contextProviders = [];
+
     private function __construct(
         private readonly Clock $clock = new SystemClock(),
     ) {
@@ -162,8 +189,18 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->httpCalls = [];
         $this->httpRequestStarts = [];
 
+        $this->totalQueryCount = 0;
+        $this->totalQueryDurationMs = 0;
+        $this->totalHttpCount = 0;
+        $this->totalHttpDurationMs = 0;
+        $this->totalMemoryDelta = 0;
+        $this->runStartMemory = null;
+
+        $this->runContext = [];
+
         if ($this->trackingMemory) {
             $this->lastMemoryUsage = memory_get_usage();
+            $this->runStartMemory = $this->lastMemoryUsage;
         }
 
         return $this;
@@ -328,6 +365,8 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
                 $this->queryCount++;
                 $this->queryDurationMs += $query->time;
+                $this->totalQueryCount++;
+                $this->totalQueryDurationMs += $query->time;
 
                 if (count($this->queryCalls) < self::QUERY_CALL_DETAIL_CAP) {
                     $this->queryCalls[] = [
@@ -350,6 +389,10 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
         $this->trackingMemory = true;
         $this->lastMemoryUsage = memory_get_usage();
+
+        if ($this->runStartMemory === null) {
+            $this->runStartMemory = $this->lastMemoryUsage;
+        }
 
         return $this;
     }
@@ -475,6 +518,8 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     {
         $this->httpCount++;
         $this->httpDurationMs += $durationMs;
+        $this->totalHttpCount++;
+        $this->totalHttpDurationMs += $durationMs;
 
         if (count($this->httpCalls) < self::HTTP_CALL_DETAIL_CAP) {
             $this->httpCalls[] = [
@@ -612,12 +657,49 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->endTime = $this->clock->now();
         $this->endHrtime = $this->clock->hrtime();
 
-        $this->dispatchNotifications();
+        $this->finaliseTotals();
+
+        // Recorders run BEFORE notifications. A throwing notification channel must
+        // never prevent persistence of the run-log file; both phases swallow errors.
+        $this->safeDispatchRunRecorders();
+        $this->safeDispatchNotifications();
+
+        // Clear per-run context AFTER dispatch so providers + manually-set context
+        // both reach the recorder, then a fresh run starts with no leftover state.
+        $this->runContext = [];
 
         return $this;
     }
 
-    private function dispatchNotifications(): void
+    /**
+     * Close out whole-run accumulators that can only be measured at finish() time.
+     * Called once per run from {@see finish()} before any dispatch.
+     */
+    private function finaliseTotals(): void
+    {
+        if ($this->trackingMemory && $this->runStartMemory !== null) {
+            $this->totalMemoryDelta = memory_get_usage() - $this->runStartMemory;
+        }
+    }
+
+    private function safeDispatchRunRecorders(): void
+    {
+        if ($this->runRecorders === []) {
+            return;
+        }
+
+        $context = $this->resolveRunContext();
+
+        foreach ($this->runRecorders as $runRecorder) {
+            try {
+                $runRecorder->record($this, $context);
+            } catch (\Throwable $e) {
+                $this->logDispatchFailure('Stopwatch run recorder failed', $e);
+            }
+        }
+    }
+
+    private function safeDispatchNotifications(): void
     {
         if ($this->notifyThresholdMs === null || $this->notificationChannels === [] || $this->startHrtime === null || $this->endHrtime === null) {
             return;
@@ -632,11 +714,26 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         // Channels may call toLog()/toHtml() which call finish() — this is safe
         // because endHrtime is already set, so finish() will no-op.
         foreach ($this->notificationChannels as $notificationChannel) {
-            if (is_string($notificationChannel)) {
-                $notificationChannel = app($notificationChannel);
-            }
+            try {
+                if (is_string($notificationChannel)) {
+                    $notificationChannel = app($notificationChannel);
+                }
 
-            $notificationChannel->notify($this);
+                $notificationChannel->notify($this);
+            } catch (\Throwable $e) {
+                $this->logDispatchFailure('Stopwatch notification channel failed', $e);
+            }
+        }
+    }
+
+    private function logDispatchFailure(string $message, \Throwable $e): void
+    {
+        try {
+            if (function_exists('logger')) {
+                logger()->warning($message . ': ' . $e->getMessage(), ['exception' => $e]);
+            }
+        } catch (\Throwable) {
+            // logger unavailable — swallow rather than break the request.
         }
     }
 
@@ -673,6 +770,58 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     public function totalRunDurationReadable(): string
     {
         return self::formatDuration($this->totalRunDuration()->totalMilliseconds);
+    }
+
+    /**
+     * Snapshot of the recorded checkpoints in order.
+     *
+     * Returns an array (not the underlying mutable {@see StopwatchCheckpointCollection})
+     * so consumers cannot push/replace items behind our back. Each element is itself a
+     * `final readonly` {@see StopwatchCheckpoint}.
+     *
+     * @return list<StopwatchCheckpoint>
+     */
+    public function checkpoints(): array
+    {
+        return array_values($this->checkpoints->all());
+    }
+
+    /**
+     * Whole-run totals captured at finish() time. Includes all work since reset(),
+     * not just work attributed to checkpoints. Run log writers consume this; toMarkdown()
+     * does not — its body still shows per-checkpoint deltas exactly as before.
+     *
+     * Memory delta is end-minus-start across the whole run (only available when memory
+     * tracking is enabled before finish()). Query/HTTP totals are null when their
+     * respective tracking is disabled.
+     *
+     * @return array{
+     *     duration_ms: float,
+     *     checkpoints: int,
+     *     queries_total: int|null,
+     *     query_ms_total: float|null,
+     *     http_total: int|null,
+     *     http_ms_total: float|null,
+     *     memory_delta_bytes: int|null,
+     *     slow_threshold_ms: int,
+     *     exceeds_slow_threshold: bool,
+     * }
+     */
+    public function finalRunTotals(): array
+    {
+        $durationMs = $this->totalRunDuration()->totalMilliseconds;
+
+        return [
+            'duration_ms' => $durationMs,
+            'checkpoints' => $this->checkpoints->count(),
+            'queries_total' => $this->trackingQueries ? $this->totalQueryCount : null,
+            'query_ms_total' => $this->trackingQueries ? round($this->totalQueryDurationMs, 1) : null,
+            'http_total' => $this->trackingHttp ? $this->totalHttpCount : null,
+            'http_ms_total' => $this->trackingHttp ? round($this->totalHttpDurationMs, 1) : null,
+            'memory_delta_bytes' => $this->trackingMemory ? $this->totalMemoryDelta : null,
+            'slow_threshold_ms' => $this->slowCheckpointThresholdMs,
+            'exceeds_slow_threshold' => $durationMs >= $this->slowCheckpointThresholdMs,
+        ];
     }
 
     /**
@@ -774,6 +923,68 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             : (float) $threshold;
 
         return $this;
+    }
+
+    /**
+     * Replace the current set of run-log recorders. Pass no arguments to disable.
+     * Replace semantics (not append) match {@see notifyUsing()} — repeated wiring
+     * on the singleton would otherwise cause duplicate writes.
+     */
+    public function recordRunsTo(RunLog\RunRecorder ...$recorders): self
+    {
+        $this->runRecorders = array_values($recorders);
+
+        return $this;
+    }
+
+    /**
+     * Merge per-run context (cleared on {@see reset()}). Used by middleware to
+     * stamp `url`/`method`/`status` onto the next finish.
+     *
+     * @param array<string, scalar|null> $context
+     */
+    public function withRunContext(array $context): self
+    {
+        $this->runContext = [...$this->runContext, ...$context];
+
+        return $this;
+    }
+
+    /**
+     * Append a persistent context provider — its return value is merged into the
+     * resolved run context at {@see finish()} time. Providers survive {@see reset()}
+     * (they are wiring, not state) and are evaluated lazily, so they are not affected
+     * by `start()`-then-`reset()` races.
+     *
+     * @param callable(self): array<string, scalar|null> $provider
+     */
+    public function pushRunContextProvider(callable $provider): self
+    {
+        $this->contextProviders[] = $provider;
+
+        return $this;
+    }
+
+    /**
+     * Resolve the merged run context: provider output first, per-run overrides on top.
+     * A throwing provider is logged + skipped so a single broken provider cannot block
+     * the rest of the recorder dispatch.
+     *
+     * @return array<string, scalar|null>
+     */
+    public function resolveRunContext(): array
+    {
+        $resolved = [];
+
+        foreach ($this->contextProviders as $contextProvider) {
+            try {
+                $resolved = [...$resolved, ...$contextProvider($this)];
+            } catch (\Throwable $e) {
+                $this->logDispatchFailure('Stopwatch run context provider failed', $e);
+            }
+        }
+
+        return [...$resolved, ...$this->runContext];
     }
 
     public function toLog(?string $title = null, ?string $level = null): self

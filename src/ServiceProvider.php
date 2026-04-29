@@ -6,6 +6,7 @@ use Barryvdh\Debugbar\LaravelDebugbar;
 use Illuminate\Support\Facades\Blade;
 use SanderMuller\Stopwatch\Integrations\DebugbarCollector;
 use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
+use SanderMuller\Stopwatch\RunLog\RunLogServiceRegistrar;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -15,11 +16,18 @@ final class ServiceProvider extends PackageServiceProvider
     {
         $package
             ->name('stopwatch')
-            ->hasConfigFile();
+            ->hasConfigFile()
+            ->hasCommands([
+                Console\RunsListCommand::class,
+                Console\RunsShowCommand::class,
+                Console\RunsClearCommand::class,
+            ]);
     }
 
     public function packageRegistered(): void
     {
+        RunLogServiceRegistrar::register($this->app);
+
         $this->app->singleton(Stopwatch::class, function (): Stopwatch {
             return $this->configureStopwatch(Stopwatch::new());
         });
@@ -97,6 +105,8 @@ final class ServiceProvider extends PackageServiceProvider
         if (is_numeric($config['notify_threshold'] ?? null)) {
             $stopwatch->notifyIfSlowerThan((int) $config['notify_threshold']);
         }
+
+        RunLogServiceRegistrar::wire($this->app, $stopwatch);
 
         return $stopwatch;
     }

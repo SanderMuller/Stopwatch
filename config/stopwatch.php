@@ -134,4 +134,40 @@ return [
         'subject' => env('STOPWATCH_MAIL_SUBJECT'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Run Log
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, every finished stopwatch run is persisted as a markdown
+    | file under `storage/stopwatch/runs/<ULID>.md` so an AI skill — or a
+    | human — can later inspect slow requests via the artisan commands
+    | (`stopwatch:runs:list`, `stopwatch:runs:show`, `stopwatch:runs:clear`).
+    |
+    | `min_duration_ms` — only log runs at or above this duration (default 50ms,
+    | matching `slow_threshold`). Set to 0 to log everything.
+    |
+    | `detail` — `summary` (per-checkpoint table only) or `full` (also per-call
+    | SQL and HTTP detail tables). SQL bindings are NEVER persisted unless
+    | `include_bindings=true` (PII opt-in).
+    |
+    | `skip_empty` — skip runs that finished with zero checkpoints (typical for
+    | autoStart middleware on routes with no `stopwatch()->checkpoint()` calls).
+    |
+    | Note: this feature is Laravel-only and not supported under Octane/Swoole
+    | until the stopwatch lifecycle becomes per-request.
+    |
+    */
+
+    'run_log' => [
+        'enabled' => (bool) env('STOPWATCH_LOG_RUNS', false),
+        'path' => env('STOPWATCH_LOG_DIR'),
+        'min_duration_ms' => (int) env('STOPWATCH_LOG_MIN_DURATION_MS', 50),
+        'max_files' => (int) env('STOPWATCH_LOG_MAX_FILES', 200),
+        'max_age_days' => (int) env('STOPWATCH_LOG_MAX_AGE_DAYS', 7),
+        'detail' => env('STOPWATCH_LOG_DETAIL', 'summary'),
+        'include_bindings' => (bool) env('STOPWATCH_LOG_INCLUDE_BINDINGS', false),
+        'skip_empty' => (bool) env('STOPWATCH_LOG_SKIP_EMPTY', true),
+    ],
+
 ];

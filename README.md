@@ -366,6 +366,41 @@ return response('OK')
     ->header('Server-Timing', stopwatch()->toServerTiming());
 ```
 
+### Run log (persistent profile history)
+
+Persist a markdown record of every finished stopwatch run to disk so you (or an AI assistant) can later inspect slow runs without re-running the workload. Off by default — enable with one env var:
+
+```dotenv
+STOPWATCH_LOG_RUNS=true
+```
+
+Pair with `StopwatchMiddleware` (or call `stopwatch()->finish()` from a command/job). Each finished run that exceeds `STOPWATCH_LOG_MIN_DURATION_MS` (default `50ms`) gets persisted to `storage/stopwatch/runs/<ULID>.md`. The body is identical to `stopwatch()->toMarkdown()`; the YAML frontmatter on top makes the list command cheap.
+
+Inspect from the command line:
+
+```bash
+php artisan stopwatch:runs:list --slow --limit=10
+php artisan stopwatch:runs:show <id>
+php artisan stopwatch:runs:clear              # cleanup when done
+```
+
+Configuration knobs (env or `config/stopwatch.php` under `run_log`):
+
+| Var                                | Default | Purpose                                                              |
+|------------------------------------|---------|----------------------------------------------------------------------|
+| `STOPWATCH_LOG_RUNS`               | `false` | Master toggle                                                        |
+| `STOPWATCH_LOG_DIR`                | `storage/stopwatch/runs` | Override the storage path                                |
+| `STOPWATCH_LOG_MIN_DURATION_MS`    | `50`    | Skip runs faster than this; set to `0` to log everything             |
+| `STOPWATCH_LOG_MAX_FILES`          | `200`   | Cap on retained files (oldest pruned automatically on every write)   |
+| `STOPWATCH_LOG_MAX_AGE_DAYS`       | `7`     | Soft age cap (probabilistic prune)                                   |
+| `STOPWATCH_LOG_DETAIL`             | `summary` | `summary` or `full`. `full` appends per-call SQL and HTTP detail tables |
+| `STOPWATCH_LOG_INCLUDE_BINDINGS`   | `false` | Persist SQL bindings in `full` mode (PII opt-in — leave off unless you need it) |
+| `STOPWATCH_LOG_SKIP_EMPTY`         | `true`  | Skip runs that finished with zero checkpoints                        |
+
+Crashed requests still write a run-log file with `threw: true` in the frontmatter, so you can debug exceptions after the fact. Run-log writes never throw — disk failures are logged via `logger()->warning()` and the request completes normally.
+
+> The run log is **Laravel-only** in v1 and is **not supported under Laravel Octane / Swoole** until the stopwatch lifecycle becomes per-request — the singleton's mutable per-run state is not safe for concurrent coroutines.
+
 ### Manually stop the stopwatch
 
 You can manually stop the stopwatch to freeze the timing. It will also stop automatically when output is rendered (e.g. `render()`, `toArray()`, `toStderr()`).

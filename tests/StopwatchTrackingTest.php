@@ -487,4 +487,108 @@ final class StopwatchTrackingTest extends TestCase
         $response->assertOk();
         self::assertNull($response->headers->get('Server-Timing'));
     }
+
+    public function test_final_run_totals_includes_query_work_after_last_checkpoint(): void
+    {
+        stopwatch()->withQueryTracking()->start();
+
+        DB::select('SELECT 1');
+        stopwatch()->checkpoint('After one query');
+
+        // Tail work — never attributed to a checkpoint.
+        DB::select('SELECT 1');
+        DB::select('SELECT 1');
+        stopwatch()->finish();
+
+        $totals = stopwatch()->finalRunTotals();
+        self::assertSame(3, $totals['queries_total']);
+        self::assertGreaterThanOrEqual(0.0, $totals['query_ms_total']);
+
+        // toMarkdown body still shows only the per-checkpoint count (1 query).
+        $markdown = stopwatch()->toMarkdown();
+        self::assertStringContainsString('1q in', $markdown);
+        self::assertStringNotContainsString('3q in', $markdown);
+    }
+
+    public function test_final_run_totals_includes_http_work_after_last_checkpoint(): void
+    {
+        Http::fake();
+        stopwatch()->withHttpTracking()->start();
+
+        Http::get('https://example.com/a');
+        stopwatch()->checkpoint('After one call');
+
+        Http::get('https://example.com/b');
+        Http::get('https://example.com/c');
+        stopwatch()->finish();
+
+        $totals = stopwatch()->finalRunTotals();
+        self::assertSame(3, $totals['http_total']);
+    }
+
+    public function test_final_run_totals_returns_null_for_disabled_tracking(): void
+    {
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->start();
+        $stopwatch->checkpoint('No tracking');
+        $stopwatch->finish();
+
+        $totals = $stopwatch->finalRunTotals();
+
+        self::assertNull($totals['queries_total']);
+        self::assertNull($totals['query_ms_total']);
+        self::assertNull($totals['http_total']);
+        self::assertNull($totals['http_ms_total']);
+        self::assertNull($totals['memory_delta_bytes']);
+        self::assertSame(1, $totals['checkpoints']);
+    }
+
+    public function test_final_run_totals_memory_delta_is_end_minus_start(): void
+    {
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->withMemoryTracking()->start();
+
+        $bigBuffer = str_repeat('x', 256 * 1024);
+        $stopwatch->checkpoint('Allocated');
+
+        // Free the buffer — per-checkpoint sum-of-deltas would still show a positive
+        // bump from the alloc-then-free; whole-run end-minus-start should net out closer to zero.
+        unset($bigBuffer);
+        $stopwatch->finish();
+
+        $totals = $stopwatch->finalRunTotals();
+        self::assertIsInt($totals['memory_delta_bytes']);
+        // Not an exact assertion — runtime allocations from the test harness drift this — but
+        // must be smaller than the buffer we allocated and immediately freed.
+        self::assertLessThan(256 * 1024, $totals['memory_delta_bytes']);
+    }
+
+    public function test_final_run_totals_accumulators_reset_on_restart(): void
+    {
+        stopwatch()->withQueryTracking()->start();
+        DB::select('SELECT 1');
+        DB::select('SELECT 1');
+        stopwatch()->finish();
+
+        self::assertSame(2, stopwatch()->finalRunTotals()['queries_total']);
+
+        stopwatch()->restart();
+        DB::select('SELECT 1');
+        stopwatch()->finish();
+
+        self::assertSame(1, stopwatch()->finalRunTotals()['queries_total']);
+    }
+
+    public function test_final_run_totals_exposes_slow_threshold_flag(): void
+    {
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->slowCheckpointThreshold(50)->start();
+        $stopwatch->checkpoint('Quick');
+        $stopwatch->finish();
+
+        $totals = $stopwatch->finalRunTotals();
+
+        self::assertSame(50, $totals['slow_threshold_ms']);
+        self::assertFalse($totals['exceeds_slow_threshold']);
+    }
 }

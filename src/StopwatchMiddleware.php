@@ -5,6 +5,7 @@ namespace SanderMuller\Stopwatch;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 final readonly class StopwatchMiddleware
 {
@@ -27,14 +28,47 @@ final readonly class StopwatchMiddleware
             $this->stopwatch->start();
         }
 
-        /** @var Response $response */
-        $response = $next($request);
+        try {
+            /** @var Response $response */
+            $response = $next($request);
+        } catch (Throwable $throwable) {
+            $this->finishWithContext($request, status: 500, threw: true);
+
+            throw $throwable;
+        }
 
         if ($this->stopwatch->enabled() && $this->stopwatch->started()) {
-            $this->stopwatch->finish();
+            $this->finishWithContext($request, status: $response->getStatusCode(), threw: false);
             $response->headers->set('Server-Timing', $this->stopwatch->toServerTiming());
         }
 
         return $response;
+    }
+
+    private function finishWithContext(Request $request, int $status, bool $threw): void
+    {
+        if (! $this->stopwatch->enabled() || ! $this->stopwatch->started()) {
+            return;
+        }
+
+        $context = [
+            'url' => $this->stripQuery($request->fullUrl()),
+            'method' => $request->method(),
+            'status' => $status,
+        ];
+
+        if ($threw) {
+            $context['threw'] = true;
+        }
+
+        $this->stopwatch->withRunContext($context);
+        $this->stopwatch->finish();
+    }
+
+    private function stripQuery(string $url): string
+    {
+        $pos = strpos($url, '?');
+
+        return $pos === false ? $url : substr($url, 0, $pos);
     }
 }
