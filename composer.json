@@ -37,9 +37,9 @@
     },
     "require-dev": {
         "fakerphp/faker": "^1.24",
+        "fruitcake/laravel-debugbar": "^4.2",
         "illuminate/database": "^11.0|^12.0|^13.0",
         "laravel/pint": "^1.24",
-        "maximebf/debugbar": "^3.5",
         "nunomaduro/collision": "^8.8.2",
         "orchestra/testbench": "^9.6|^10.6|^11.0",
         "phpstan/extension-installer": "^1.4.3",
@@ -48,14 +48,14 @@
         "phpstan/phpstan-strict-rules": "^2.0.6",
         "rector/rector": "^2.1.7",
         "rector/type-perfect": "^2.1",
-        "sandermuller/package-boost": "^0.9.0",
+        "sandermuller/package-boost": "^0.10.0",
         "spaze/phpstan-disallowed-calls": "^4.6",
         "symplify/phpstan-extensions": "^12.0.1",
         "tomasvotruba/cognitive-complexity": "^1.0",
         "tomasvotruba/type-coverage": "^2.0.2"
     },
     "suggest": {
-        "barryvdh/laravel-debugbar": "Display stopwatch checkpoints as a timeline in Debugbar"
+        "fruitcake/laravel-debugbar": "Display stopwatch checkpoints as a timeline in Debugbar"
     },
     "autoload": {
         "psr-4": {
@@ -74,6 +74,13 @@
         "phpstan": "vendor/bin/phpstan analyse --memory-limit=2G",
         "phpstan-simplified": "vendor/bin/phpstan analyse --memory-limit=2G --error-format symplify",
         "phpstan-clear-cache": "vendor/bin/phpstan clear-result-cache",
+        "qa": [
+            "@rector",
+            "@fix-cs",
+            "@phpstan-simplified"
+        ],
+        "fix-cs": "vendor/bin/pint",
+        "pint": "vendor/bin/pint",
         "format": "vendor/bin/pint",
         "rector": "vendor/bin/rector process",
         "sync-ai": "vendor/bin/testbench package-boost:sync"
