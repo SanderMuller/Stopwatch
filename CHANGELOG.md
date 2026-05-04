@@ -8,6 +8,90 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.9.0](https://github.com/SanderMuller/Stopwatch/compare/v0.8.0...v0.9.0) - 2026-05-04
+
+### Request profiler injection
+
+A Debugbar-style toolbar can now be injected into rendered HTML responses, surfacing per-request totals (duration, memory delta, query count + time, outbound HTTP count + time) and a JS-free expanded panel with per-checkpoint deltas, cumulative time, share %, and per-row query / HTTP / memory deltas. Three opt-in tiers — global, per-route alias, controller attribute — share one injector and one renderer.
+
+#### Modes
+
+`STOPWATCH_INJECT` (env / `inject.mode` config) selects the trigger:
+
+| Mode        | Behaviour                                                                                  |
+|-------------|--------------------------------------------------------------------------------------------|
+| `off`       | Default. Injector never runs. Existing `Server-Timing` header path unchanged.              |
+| `all`       | Inject on every eligible HTML response (Debugbar parity).                                  |
+| `route`     | Inject only when the route's middleware list contains the `stopwatch.inject` alias.        |
+| `attribute` | Inject when the resolved controller class or method carries `#[ProfileViaStopwatch]`. Closure routes opt in via the `stopwatch.inject` alias as a fallback. |
+
+#### Required topology
+
+`StopwatchInjectMiddleware` reads aggregates **after** `$next` returns, so it must wrap `StopwatchMiddleware::autoStart()` (which finishes the stopwatch in its own post-`$next` block):
+
+```php
+// bootstrap/app.php
+$middleware->append(StopwatchInjectMiddleware::class);          // outer — runs after()
+$middleware->append(StopwatchMiddleware::autoStart());          // inner — finishes the stopwatch
+
+```
+If the order is reversed, `finish()` runs after `inject` and the `started() && ended()` guard short-circuits silently. The middleware logs a one-shot debug message in non-production environments to surface this misconfiguration.
+
+#### Environment allow-list (security-critical default)
+
+`STOPWATCH_INJECT_ENVIRONMENTS` is a CSV (default `local`) of environments where injection may run. **Default-deny by environment name.** This is intentionally stricter than `! production` because the expanded panel exposes raw SQL with bound values via the existing query renderer; staging/dev/preview environments often serve real traffic and a `not-production` allow-rule would leak SQL + bindings to anyone who can reach those URLs.
+
+To enable injection in additional environments:
+
+```env
+STOPWATCH_INJECT_ENVIRONMENTS=local,docker
+
+```
+#### `#[ProfileViaStopwatch]` attribute
+
+Marker attribute (no parameters in v1, `TARGET_CLASS | TARGET_METHOD`):
+
+```php
+use SanderMuller\Stopwatch\ProfileViaStopwatch;
+
+#[ProfileViaStopwatch]
+final class OrdersController { /* ... */ }
+
+// or per-method
+final class DashboardController
+{
+    #[ProfileViaStopwatch]
+    public function show() { /* ... */ }
+}
+
+```
+#### Eligibility guards
+
+The middleware short-circuits on, in order: `mode === off`; Octane / Swoole bound; environment not in allow-list; non-2xx response; `Content-Type` not `text/html` (or charset present and not UTF-8); `Content-Encoding` set and not `identity`; `StreamedResponse` / `BinaryFileResponse`; ajax / wantsJson / pjax / `HX-Request` / `X-Livewire` / `X-Inertia` headers; stopwatch not started or not finished. XHTML (`application/xhtml+xml`) is **not** supported in v1.
+
+Octane / Swoole are hard-disabled at runtime: the `Stopwatch` singleton is per-process and would mix data across requests.
+
+#### Injector internals
+
+- Locates the **last** `</body>` via byte-oriented `strripos`; inserts toolbar with `substr_replace`. Both operate on byte offsets so multibyte (CJK, emoji) bodies round-trip without corruption.
+- Idempotent: an `<!--stopwatch-toolbar-->` marker prevents double-injection.
+- Strips `Content-Length`, `ETag`, `Last-Modified` after mutation to avoid cache poisoning (Symfony recomputes `Content-Length` on send).
+
+#### CSP note
+
+The toolbar emits a scoped inline `<style>` block (no external assets, no inline `<script>`, no `localStorage`). Strict CSP users need `style-src 'unsafe-inline'` (or a future nonce extension) to render the toolbar; the toggle uses CSS-only `<details>`.
+
+#### Env vars
+
+| Env var                          | Default        | Purpose                                                  |
+|----------------------------------|----------------|----------------------------------------------------------|
+| `STOPWATCH_INJECT`               | `off`          | `off` / `all` / `route` / `attribute`                    |
+| `STOPWATCH_INJECT_ENVIRONMENTS`  | `local`        | CSV allow-list of environment names                      |
+| `STOPWATCH_INJECT_POSITION`      | `bottom-right` | `bottom-right` / `bottom-left` / `top-right` / `top-left`|
+| `STOPWATCH_INJECT_SLOW_REQUEST_MS` | `500`        | Duration pill turns red at or above this many ms         |
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.8.0...v0.9.0
+
 ## [v0.8.0](https://github.com/SanderMuller/Stopwatch/compare/v0.7.0...v0.8.0) - 2026-04-29
 
 ### Run log: exception detail + Laravel Context
@@ -30,6 +114,7 @@ exception_line: 142
 ctx_trace_id: 01HZULID0000000000000000A
 ctx_tenant_id: acme
 ---
+
 
 ```
 #### Knobs
@@ -104,6 +189,7 @@ Persist every finished stopwatch run as a markdown file under `storage/stopwatch
 STOPWATCH_LOG_RUNS=true
 
 
+
 ```
 Each persisted file is plain markdown (the same shape as `stopwatch()->toMarkdown()`) with a YAML frontmatter header (`id`, `recorded_at`, `duration_ms`, `url`, `method`, `status`, `command`, query/HTTP/memory totals, slow-threshold flag) so listing is cheap. Three artisan commands are registered:
 
@@ -111,6 +197,7 @@ Each persisted file is plain markdown (the same shape as `stopwatch()->toMarkdow
 php artisan stopwatch:runs:list --slow --limit=10
 php artisan stopwatch:runs:show <id>
 php artisan stopwatch:runs:clear              # cleanup when done
+
 
 
 ```
@@ -189,6 +276,7 @@ If you use [`laravel/boost`](https://github.com/laravel/boost), the skill is aut
       ->when($trackQueries, fn ($sw) => $sw->withQueryTracking())
       ->unless(app()->runningUnitTests(), fn ($sw) => $sw->withHttpTracking())
       ->start();
+  
   
   
   
