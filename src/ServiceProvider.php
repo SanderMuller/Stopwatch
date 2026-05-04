@@ -3,6 +3,7 @@
 namespace SanderMuller\Stopwatch;
 
 use Barryvdh\Debugbar\LaravelDebugbar;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
 use SanderMuller\Stopwatch\Integrations\DebugbarCollector;
 use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
@@ -39,7 +40,15 @@ final class ServiceProvider extends PackageServiceProvider
             return '<?php echo app(' . Stopwatch::class . '::class)->render(); ?>';
         });
 
+        $this->registerInjectAlias();
         $this->registerDebugbar();
+    }
+
+    private function registerInjectAlias(): void
+    {
+        $router = $this->app->make(Router::class);
+
+        $router->aliasMiddleware(StopwatchInjectMiddleware::ALIAS, StopwatchInjectAlias::class);
     }
 
     private function registerDebugbar(): void

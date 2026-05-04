@@ -227,4 +227,43 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Request Profiler Injection
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, an HTML toolbar is injected into eligible 2xx HTML responses
+    | so developers see per-request totals (duration, memory delta, query and
+    | HTTP counts) directly in the page. The expanded panel exposes raw SQL
+    | with bound values via the existing query renderer; treat any environment
+    | with this enabled as "trusted viewer only".
+    |
+    | mode:
+    |   off       - never inject (default)
+    |   all       - inject on every eligible HTML response
+    |   route     - inject only when the route's middleware list contains the
+    |               `stopwatch.inject` alias (alias acts as a marker; the
+    |               global middleware does the actual injection)
+    |   attribute - inject when the resolved controller class or method
+    |               carries `#[ProfileViaStopwatch]`. Closure routes can opt
+    |               in by also adding the `stopwatch.inject` alias.
+    |
+    | allowed_environments:
+    |   CSV (e.g. `local,docker`) of environments where injection may run.
+    |   Default: `local` only - default-deny because the toolbar exposes raw
+    |   SQL + bindings and shared dev/staging environments are common.
+    |
+    | Required topology: register `StopwatchInjectMiddleware` globally OUTER
+    | to `StopwatchMiddleware::autoStart()`. The injector reads aggregates
+    | post-$next, so autostart's `finish()` must run first (i.e. inner).
+    |
+    */
+
+    'inject' => [
+        'mode' => env('STOPWATCH_INJECT', 'off'),
+        'allowed_environments' => env('STOPWATCH_INJECT_ENVIRONMENTS', 'local'),
+        'position' => env('STOPWATCH_INJECT_POSITION', 'bottom-right'),
+        'slow_request_threshold_ms' => (int) env('STOPWATCH_INJECT_SLOW_REQUEST_MS', 500),
+    ],
+
 ];

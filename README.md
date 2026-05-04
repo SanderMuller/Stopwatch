@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/github/license/sandermuller/stopwatch.svg?style=flat-square)](LICENSE)
 [![Laravel Compatibility](https://badge.laravel.cloud/badge/sandermuller/stopwatch?style=flat)](https://packagist.org/packages/sandermuller/stopwatch)
 
-A lightweight profiler for PHP and Laravel. Add checkpoints to your code, measure closures, track queries and memory, and see where time is spent. Output as HTML, Server-Timing headers, log entries, or Debugbar timelines.
+A lightweight profiler for PHP and Laravel. Add checkpoints to your code, measure closures, track queries and memory, and see where time is spent. Output as HTML, an injected request-profiler toolbar, Server-Timing headers, log entries, or Debugbar timelines.
 
 **Requires PHP 8.3+**
 
@@ -31,16 +31,20 @@ All settings can be configured via environment variables or the `config/stopwatc
 
 | Setting            | Env Variable                 | Default  | Description                                              |
 |--------------------|------------------------------|----------|----------------------------------------------------------|
-| `enabled`          | `STOPWATCH_ENABLED`          | `true`   | Disable to make all calls no-ops with near-zero overhead |
-| `output`           | `STOPWATCH_OUTPUT`           | `silent` | Default output mode (`silent`, `log`, `stderr`, `dump`)  |
-| `log_level`        | `STOPWATCH_LOG_LEVEL`        | `debug`  | Log level when output is `log`                           |
-| `slow_threshold`   | `STOPWATCH_SLOW_THRESHOLD`   | `50`     | Highlight checkpoints slower than this (ms)              |
-| `track_queries`    | `STOPWATCH_TRACK_QUERIES`    | `false`  | Auto-track query count and duration per checkpoint       |
-| `track_memory`     | `STOPWATCH_TRACK_MEMORY`     | `false`  | Auto-track memory usage per checkpoint                   |
-| `track_http`       | `STOPWATCH_TRACK_HTTP`       | `false`  | Auto-track outbound `Http::` calls per checkpoint        |
-| `notify_threshold` | `STOPWATCH_NOTIFY_THRESHOLD` | `null`   | Notify via channels if total duration exceeds this (ms)  |
-| `mail.to`          | `STOPWATCH_MAIL_TO`          | `null`   | Recipient address for `MailChannel` notifications        |
-| `mail.subject`     | `STOPWATCH_MAIL_SUBJECT`     | `null`   | Email subject (defaults to duration if not set)          |
+| `enabled`                          | `STOPWATCH_ENABLED`                 | `true`         | Disable to make all calls no-ops with near-zero overhead              |
+| `output`                           | `STOPWATCH_OUTPUT`                  | `silent`       | Default output mode (`silent`, `log`, `stderr`, `dump`)               |
+| `log_level`                        | `STOPWATCH_LOG_LEVEL`               | `debug`        | Log level when output is `log`                                        |
+| `slow_threshold`                   | `STOPWATCH_SLOW_THRESHOLD`          | `50`           | Highlight checkpoints slower than this (ms)                           |
+| `track_queries`                    | `STOPWATCH_TRACK_QUERIES`           | `false`        | Auto-track query count and duration per checkpoint                    |
+| `track_memory`                     | `STOPWATCH_TRACK_MEMORY`            | `false`        | Auto-track memory usage per checkpoint                                |
+| `track_http`                       | `STOPWATCH_TRACK_HTTP`              | `false`        | Auto-track outbound `Http::` calls per checkpoint                     |
+| `notify_threshold`                 | `STOPWATCH_NOTIFY_THRESHOLD`        | `null`         | Notify via channels if total duration exceeds this (ms)               |
+| `mail.to`                          | `STOPWATCH_MAIL_TO`                 | `null`         | Recipient address for `MailChannel` notifications                     |
+| `mail.subject`                     | `STOPWATCH_MAIL_SUBJECT`            | `null`         | Email subject (defaults to duration if not set)                       |
+| `inject.mode`                      | `STOPWATCH_INJECT`                  | `off`          | Toolbar trigger: `off`, `all`, `route`, `attribute`                   |
+| `inject.allowed_environments`      | `STOPWATCH_INJECT_ENVIRONMENTS`     | `local`        | CSV allow-list of environments where injection may run (default-deny) |
+| `inject.position`                  | `STOPWATCH_INJECT_POSITION`         | `bottom-right` | Toolbar position: `bottom-right`, `bottom-left`, `top-right`, `top-left` |
+| `inject.slow_request_threshold_ms` | `STOPWATCH_INJECT_SLOW_REQUEST_MS`  | `500`          | Duration pill turns red at or above this (ms)                         |
 
 ## Usage
 
@@ -365,6 +369,69 @@ Or add the header manually without the middleware:
 return response('OK')
     ->header('Server-Timing', stopwatch()->toServerTiming());
 ```
+
+### Inject a profiler toolbar
+
+Inject a Debugbar-style toolbar into eligible HTML responses with per-request totals (duration, memory delta, query / HTTP counts) and a JS-free expanded panel of per-checkpoint deltas. Three opt-in tiers share one injector.
+
+```dotenv
+STOPWATCH_INJECT=all                      # off | all | route | attribute
+STOPWATCH_INJECT_ENVIRONMENTS=local       # CSV — default-deny by environment name
+STOPWATCH_INJECT_POSITION=bottom-right    # bottom-right | bottom-left | top-right | top-left
+STOPWATCH_INJECT_SLOW_REQUEST_MS=500      # duration pill turns red at/above this many ms
+```
+
+#### Required middleware order
+
+The injector reads aggregates after `$next` returns, so it must wrap autostart (which finishes the stopwatch in its own post-`$next` block):
+
+```php
+use SanderMuller\Stopwatch\StopwatchInjectMiddleware;
+use SanderMuller\Stopwatch\StopwatchMiddleware;
+
+$middleware->append(StopwatchInjectMiddleware::class);   // outer — runs after()
+$middleware->append(StopwatchMiddleware::autoStart());   // inner — finishes the stopwatch
+```
+
+If the order is reversed, injection silently no-ops (the middleware logs a one-shot debug message in non-production environments to flag the misconfiguration).
+
+#### Modes
+
+- **`all`** — inject on every eligible HTML response.
+- **`route`** — only when the route's middleware list contains the `stopwatch.inject` alias. Add the alias to opted-in routes:
+  ```php
+  Route::middleware('stopwatch.inject')->get('/dashboard', /* ... */);
+  ```
+- **`attribute`** — only when the resolved controller class or method carries `#[ProfileViaStopwatch]`:
+  ```php
+  use SanderMuller\Stopwatch\ProfileViaStopwatch;
+
+  #[ProfileViaStopwatch]
+  final class OrdersController { /* ... */ }
+  ```
+  Closure routes have no class — add the `stopwatch.inject` alias to opt those in.
+
+#### Security: default-deny by environment
+
+`STOPWATCH_INJECT_ENVIRONMENTS` defaults to `local` only. The expanded panel exposes raw SQL with bound values via the existing query renderer; staging / dev / preview environments are commonly reachable from the internet, so `not-production` allow-rules would leak query bindings. Opt environments in explicitly:
+
+```dotenv
+STOPWATCH_INJECT_ENVIRONMENTS=local,docker
+```
+
+Treat any environment with this enabled as "trusted viewer only".
+
+#### Eligibility guards (auto-skipped)
+
+Non-2xx responses; non-`text/html` `Content-Type` (or charset present and not UTF-8); `Content-Encoding` set and not `identity`; `StreamedResponse` / `BinaryFileResponse`; ajax / wantsJson / pjax / `HX-Request` / `X-Livewire` / `X-Inertia` headers; stopwatch never started or never finished. XHTML (`application/xhtml+xml`) is not supported in v1.
+
+#### Octane / Swoole
+
+Hard-disabled at runtime. The `Stopwatch` singleton is per-process; under Octane the toolbar would render data from a previous request.
+
+#### CSP
+
+The toolbar emits a scoped inline `<style>` block (no inline `<script>`, no external assets, no `localStorage`). Strict-CSP setups need `style-src 'unsafe-inline'` for the toolbar to render.
 
 ### Run log (persistent profile history)
 
