@@ -83,7 +83,8 @@
         "pint": "vendor/bin/pint",
         "format": "vendor/bin/pint",
         "rector": "vendor/bin/rector process",
-        "sync-ai": "vendor/bin/testbench package-boost:sync"
+        "sync-ai": "vendor/bin/testbench package-boost:sync",
+        "test": "vendor/bin/phpunit"
     },
     "config": {
         "platform": {
