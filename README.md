@@ -7,9 +7,41 @@
 [![License](https://img.shields.io/github/license/sandermuller/stopwatch.svg?style=flat-square)](LICENSE)
 [![Laravel Compatibility](https://badge.laravel.cloud/badge/sandermuller/stopwatch?style=flat)](https://packagist.org/packages/sandermuller/stopwatch)
 
-A lightweight profiler for PHP and Laravel. Add checkpoints to your code, measure closures, track queries and memory, and see where time is spent. Output as HTML, an injected request-profiler toolbar, Server-Timing headers, log entries, or Debugbar timelines.
+A lightweight profiler for PHP and Laravel. Add checkpoints to your code, measure closures, track queries and memory, and see where time is spent.
 
-**Requires PHP 8.3+**
+Reach for it when a request, command, or job feels slow and you want to know *where* time is going — without standing up a full APM. Output as an HTML report, an injected request-profiler toolbar, `Server-Timing` headers, persistent run-log markdown, log entries, or Debugbar timelines. Works in tests, CI, and production.
+
+**Compatibility:** PHP 8.3+ · Laravel 11.x / 12.x / 13.x
+
+## Table of contents
+
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Usage](#usage)
+  - [Checkpoints](#checkpoints)
+  - [Default output mode](#default-output-mode)
+  - [Measure a closure](#measure-a-closure)
+  - [Query tracking](#query-tracking)
+  - [Memory tracking](#memory-tracking)
+  - [HTTP tracking](#http-tracking)
+  - [Write a full report](#write-a-full-report)
+  - [Conditional notifications](#conditional-notifications)
+- [Output channels](#output-channels)
+  - [HTML report](#html-report)
+  - [Profiler toolbar](#profiler-toolbar)
+  - [Server-Timing header](#server-timing-header)
+  - [Laravel Debugbar](#laravel-debugbar)
+  - [Run log (persistent profile history)](#run-log-persistent-profile-history)
+- [Reference](#reference)
+- [AI assistant integration](#ai-assistant-integration)
+- [Standalone (without Laravel)](#standalone-without-laravel)
+- [Testing](#testing)
+- [Changelog](#changelog)
+- [Contributing](#contributing)
+- [Security vulnerabilities](#security-vulnerabilities)
+- [Credits](#credits)
+- [License](#license)
 
 ## Installation
 
@@ -25,26 +57,40 @@ Optionally publish the config file:
 php artisan vendor:publish --tag=stopwatch-config
 ```
 
+## Quick start
+
+Drop a few checkpoints around suspect code and dump the profile:
+
+```php
+stopwatch()->withQueryTracking()->start();
+
+$users  = User::all();
+stopwatch()->checkpoint('Load users');
+
+$orders = Order::where('status', 'pending')->get();
+stopwatch()->checkpoint('Load orders');
+
+stopwatch()->toLog('Profile:');
+// Profile:
+//   [3ms / 3ms]   Load users  (queries=1)
+//   [12ms / 15ms] Load orders (queries=1)
+//   Total: 15ms
+```
+
+That's the whole loop: `start`, `checkpoint`, render. Read on for HTML / toolbar / `Server-Timing` / persistent run-log outputs, query / memory / HTTP tracking, and conditional notifications.
+
 ## Configuration
 
-All settings can be configured via environment variables or the `config/stopwatch.php` file:
+Core settings — every feature has its own section below with the env vars it owns:
 
-| Setting            | Env Variable                 | Default  | Description                                              |
-|--------------------|------------------------------|----------|----------------------------------------------------------|
-| `enabled`                          | `STOPWATCH_ENABLED`                 | `true`         | Disable to make all calls no-ops with near-zero overhead              |
-| `output`                           | `STOPWATCH_OUTPUT`                  | `silent`       | Default output mode (`silent`, `log`, `stderr`, `dump`)               |
-| `log_level`                        | `STOPWATCH_LOG_LEVEL`               | `debug`        | Log level when output is `log`                                        |
-| `slow_threshold`                   | `STOPWATCH_SLOW_THRESHOLD`          | `50`           | Highlight checkpoints slower than this (ms)                           |
-| `track_queries`                    | `STOPWATCH_TRACK_QUERIES`           | `false`        | Auto-track query count and duration per checkpoint                    |
-| `track_memory`                     | `STOPWATCH_TRACK_MEMORY`            | `false`        | Auto-track memory usage per checkpoint                                |
-| `track_http`                       | `STOPWATCH_TRACK_HTTP`              | `false`        | Auto-track outbound `Http::` calls per checkpoint                     |
-| `notify_threshold`                 | `STOPWATCH_NOTIFY_THRESHOLD`        | `null`         | Notify via channels if total duration exceeds this (ms)               |
-| `mail.to`                          | `STOPWATCH_MAIL_TO`                 | `null`         | Recipient address for `MailChannel` notifications                     |
-| `mail.subject`                     | `STOPWATCH_MAIL_SUBJECT`            | `null`         | Email subject (defaults to duration if not set)                       |
-| `inject.mode`                      | `STOPWATCH_INJECT`                  | `off`          | Toolbar trigger: `off`, `all`, `route`, `attribute`                   |
-| `inject.allowed_environments`      | `STOPWATCH_INJECT_ENVIRONMENTS`     | `local`        | CSV allow-list of environments where injection may run (default-deny) |
-| `inject.position`                  | `STOPWATCH_INJECT_POSITION`         | `bottom-right` | Toolbar position: `bottom-right`, `bottom-left`, `top-right`, `top-left` |
-| `inject.slow_request_threshold_ms` | `STOPWATCH_INJECT_SLOW_REQUEST_MS`  | `500`          | Duration pill turns red at or above this (ms)                         |
+| Setting          | Env variable               | Default  | Description                                              |
+|------------------|----------------------------|----------|----------------------------------------------------------|
+| `enabled`        | `STOPWATCH_ENABLED`        | `true`   | Disable to make all calls no-ops with near-zero overhead |
+| `output`         | `STOPWATCH_OUTPUT`         | `silent` | Default output mode (`silent`, `log`, `stderr`, `dump`)  |
+| `log_level`      | `STOPWATCH_LOG_LEVEL`      | `debug`  | Log level when output is `log`                           |
+| `slow_threshold` | `STOPWATCH_SLOW_THRESHOLD` | `50`     | Highlight checkpoints slower than this (ms)              |
+
+Per-feature env vars: [tracking](#query-tracking) (`STOPWATCH_TRACK_*`), [notifications](#conditional-notifications) (`STOPWATCH_NOTIFY_THRESHOLD`, `STOPWATCH_MAIL_*`), [profiler toolbar](#profiler-toolbar) (`STOPWATCH_INJECT*`), [run log](#run-log-persistent-profile-history) (`STOPWATCH_LOG_*`). The full annotated config lives in [`config/stopwatch.php`](config/stopwatch.php).
 
 ## Usage
 
@@ -64,7 +110,7 @@ You can attach metadata to any checkpoint:
 stopwatch()->checkpoint('Query executed', ['table' => 'users', 'rows' => 42]);
 ```
 
-### Output each checkpoint
+### Default output mode
 
 Configure where each checkpoint is emitted using `outputTo()`:
 
@@ -211,7 +257,7 @@ stopwatch()->notifyIfSlowerThan(CarbonInterval::seconds(2));
 
 The threshold and channels can be configured entirely via config/env:
 
-```env
+```dotenv
 STOPWATCH_NOTIFY_THRESHOLD=500
 ```
 
@@ -245,7 +291,7 @@ Add `MailChannel` to receive an email with the stopwatch's HTML report when a th
 
 Configure the recipient in your `.env`:
 
-```env
+```dotenv
 STOPWATCH_MAIL_TO=dev-team@example.com
 STOPWATCH_MAIL_SUBJECT="Slow request detected"  # optional
 ```
@@ -291,7 +337,11 @@ Or set channels at runtime:
 stopwatch()->notifyUsing([new SlackChannel()]);
 ```
 
-### Render as HTML
+## Output channels
+
+Pick the surface that matches how you want to read the profile — they share one underlying recorder and you can use several at once.
+
+### HTML report
 
 Render an HTML report with the total execution time, each checkpoint, and the time between them. Slow checkpoints are highlighted.
 
@@ -334,10 +384,6 @@ The card root is `.sw-stopwatch`. All themable surfaces are exposed as CSS varia
 
 A `@media print` rule strips shadows, drops the toggle button and tooltips, expands the card to full width, and disables the bar grow-in animation, so PDF exports of an HTML profile look clean.
 
-### Laravel Debugbar
-
-If you have [barryvdh/laravel-debugbar](https://github.com/barryvdh/laravel-debugbar) installed, checkpoint timings automatically appear as a timeline tab in Debugbar with a duration badge.
-
 ### Server-Timing header
 
 Add a `Server-Timing` HTTP header to your responses so you can inspect checkpoint timings in the browser's DevTools Network tab.
@@ -370,7 +416,7 @@ return response('OK')
     ->header('Server-Timing', stopwatch()->toServerTiming());
 ```
 
-### Inject a profiler toolbar
+### Profiler toolbar
 
 Inject a Debugbar-style toolbar into eligible HTML responses with per-request totals (duration, memory delta, query / HTTP counts) and a JS-free expanded panel of per-checkpoint deltas. Three opt-in tiers share one injector.
 
@@ -432,6 +478,10 @@ Hard-disabled at runtime. The `Stopwatch` singleton is per-process; under Octane
 #### CSP
 
 The toolbar emits a scoped inline `<style>` block (no inline `<script>`, no external assets, no `localStorage`). Strict-CSP setups need `style-src 'unsafe-inline'` for the toolbar to render.
+
+### Laravel Debugbar
+
+If you have [`fruitcake/laravel-debugbar`](https://github.com/Fruitcake/laravel-debugbar) installed, checkpoint timings automatically appear as a timeline tab in Debugbar with a duration badge — no extra wiring required.
 
 ### Run log (persistent profile history)
 
@@ -617,6 +667,8 @@ Array-typed options (config-only; env can't express arrays cleanly):
 
 Run-log writes never throw. Disk failures are logged via `logger()->warning()` and the request completes normally. Crashed runs do a bit of extra work (build the trace, render the `## Exception` section), but the overhead is bounded by `STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES` and amortised across the file write.
 
+## Reference
+
 ### Manually stop the stopwatch
 
 You can manually stop the stopwatch to freeze the timing. It will also stop automatically when output is rendered (e.g. `render()`, `toArray()`, `toStderr()`).
@@ -663,7 +715,13 @@ stopwatch()->dump(); // dump the stopwatch instance
 stopwatch()->dd();   // dump and die
 ```
 
-### Without Laravel
+## AI assistant integration
+
+This package ships an AI [skill](https://docs.claude.com/en/docs/claude-code/skills) that teaches an assistant how and when to reach for `stopwatch()` to investigate a slow request, command, or code path: checkpoint placement, when to enable query / memory / HTTP tracking, how to read the rendered card, how to drive the [run-log](#run-log-persistent-profile-history) commands, and how to wire production tripwires.
+
+If you use [`laravel/boost`](https://github.com/laravel/boost), the skill is auto-discovered from `vendor/sandermuller/stopwatch/resources/boost/skills/` — just run `php artisan boost:install`. Works with any agent that supports Laravel Boost (Claude Code, Cursor, Copilot, etc.).
+
+## Standalone (without Laravel)
 
 You can use the stopwatch without the Laravel helper by creating instances directly:
 
@@ -676,12 +734,29 @@ echo $stopwatch->toString();
 
 The `stopwatch()` helper is not available outside Laravel. Query tracking requires `illuminate/database` and a Laravel application. Config-based setup and notification channel resolution from class strings also require the Laravel container.
 
-## AI assistant skill
+## Testing
 
-This package ships an AI [skill](https://docs.claude.com/en/docs/claude-code/skills) that teaches an AI assistant how and when to reach for `stopwatch()` to investigate a slow request, command, or code path: checkpoint placement, when to enable query / memory / HTTP tracking, how to read the rendered card, and how to wire production tripwires.
+```bash
+composer test
+```
 
-If you use [laravel/boost](https://github.com/laravel/boost), the skill is auto-discovered from `vendor/sandermuller/stopwatch/resources/boost/skills/`, just run `php artisan boost:install`.
+## Changelog
+
+Please see [CHANGELOG](CHANGELOG.md) for a list of recent changes.
+
+## Contributing
+
+Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
+
+## Security vulnerabilities
+
+Please review [our security policy](../../security/policy) on how to report security vulnerabilities.
+
+## Credits
+
+- [Sander Muller](https://github.com/SanderMuller)
+- [All Contributors](../../contributors)
 
 ## License
 
-MIT
+The MIT License (MIT). Please see the [License File](LICENSE) for more information.
