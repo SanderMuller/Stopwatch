@@ -1,3 +1,15 @@
+# Upgrading from Stopwatch 0.9.x to 0.10.x
+
+## Bundled Boost skill renamed
+
+The bundled Laravel Boost skill activation name changed from `profile-app` to `stopwatch-profile` to avoid collisions with host-app or other-package skills.
+
+If you scripted against the old identifier — invoked the skill by name in tooling, referenced its directory at `vendor/sandermuller/stopwatch/resources/boost/skills/profile-app`, or asserted on the name in tests — update to `stopwatch-profile`.
+
+After upgrading, re-run `php artisan boost:install` (or your project's Boost-sync equivalent) to refresh the skill mirror. The old `profile-app` entry disappears; the new one appears in its place. No code changes are required to use `stopwatch()` itself — only the AI-skill identifier changed.
+
+---
+
 # Upgrading from Stopwatch 0.4.x to 0.5.x
 
 ## HTML render redesigned
