@@ -20,7 +20,7 @@ return [
     |
     */
 
-    'agents' => ['claude_code', 'copilot'],
+    'agents' => ['claude_code', 'copilot', 'codex'],
     /*
     |--------------------------------------------------------------------------
     | Vendor Package Discovery
