@@ -1,5 +1,5 @@
 ---
-name: profile-app
+name: stopwatch-profile
 description: "Profile a slow request, command, or code path with sandermuller/stopwatch. Activate when the user mentions: slow request, slow endpoint, slow page, slow query, slow job, slow command, slow API call, slow HTTP, performance issue, profile this, why is this slow, where is the time going, optimize, bottleneck, latency, n+1, query count, memory usage, http calls, outbound requests, server-timing."
 ---
 

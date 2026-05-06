@@ -36,3 +36,4 @@ RELEASE_NOTES*.md
 # Source of truth: .ai/skills/ + vendor/<pkg>/resources/boost/skills/.
 .github/skills/
 .claude/skills/
+.agents/skills/

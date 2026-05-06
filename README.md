@@ -527,7 +527,7 @@ Want a predictable cron job instead of the 5%-probabilistic in-process prune?
 
 #### Let your AI read the logs
 
-If you have [`laravel/boost`](https://github.com/laravel/boost) installed and the bundled `profile-app` skill synced to your editor, you can skip the artisan commands and just ask. Something like *"the /admin/users page feels slow, can you figure out why?"* is enough. The skill will:
+If you have [`laravel/boost`](https://github.com/laravel/boost) installed and the bundled `stopwatch-profile` skill synced to your editor, you can skip the artisan commands and just ask. Something like *"the /admin/users page feels slow, can you figure out why?"* is enough. The skill will:
 
 1. Verify `STOPWATCH_LOG_RUNS=true` and turn it on if not.
 2. Ask you to reproduce the slow request.
