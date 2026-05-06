@@ -84,7 +84,7 @@
         "pint": "vendor/bin/pint",
         "format": "vendor/bin/pint",
         "rector": "vendor/bin/rector process",
-        "sync-ai": "vendor/bin/testbench package-boost:sync",
+        "sync-ai": "@php -r \"if (is_file('vendor/bin/testbench')) { passthru('vendor/bin/testbench package-boost:sync'); }\"",
         "test": "vendor/bin/phpunit"
     },
     "config": {
