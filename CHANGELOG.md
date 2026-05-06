@@ -10,251 +10,73 @@ the release workflow promotes it into this file as part of the tag flow.
 
 ## [v0.9.0](https://github.com/SanderMuller/Stopwatch/compare/v0.8.0...v0.9.0) - 2026-05-04
 
-### Request profiler injection
+### Added
 
-A Debugbar-style toolbar can now be injected into rendered HTML responses, surfacing per-request totals (duration, memory delta, query count + time, outbound HTTP count + time) and a JS-free expanded panel with per-checkpoint deltas, cumulative time, share %, and per-row query / HTTP / memory deltas. Three opt-in tiers — global, per-route alias, controller attribute — share one injector and one renderer.
+- Debugbar-style HTML toolbar injected into rendered responses — per-request totals (duration, memory, queries, HTTP) plus a JS-free expanded panel with per-checkpoint deltas, share %, and per-row metrics. Three opt-in tiers via `STOPWATCH_INJECT`: `all` (every HTML response), `route` (only on the `stopwatch.inject` middleware alias), or `attribute` (only on controllers/methods carrying `#[ProfileViaStopwatch]`). Off by default.
+- `STOPWATCH_INJECT_ENVIRONMENTS` allow-list (default `local`). Default-deny by environment name because the expanded panel exposes raw SQL with bound values.
+- `STOPWATCH_INJECT_POSITION` (`bottom-right` default) and `STOPWATCH_INJECT_SLOW_REQUEST_MS` (`500`) for toolbar placement and the slow-pill threshold.
+- `#[ProfileViaStopwatch]` marker attribute (`TARGET_CLASS | TARGET_METHOD`) for the `attribute` mode.
 
-#### Modes
+### Notes
 
-`STOPWATCH_INJECT` (env / `inject.mode` config) selects the trigger:
-
-| Mode        | Behaviour                                                                                  |
-|-------------|--------------------------------------------------------------------------------------------|
-| `off`       | Default. Injector never runs. Existing `Server-Timing` header path unchanged.              |
-| `all`       | Inject on every eligible HTML response (Debugbar parity).                                  |
-| `route`     | Inject only when the route's middleware list contains the `stopwatch.inject` alias.        |
-| `attribute` | Inject when the resolved controller class or method carries `#[ProfileViaStopwatch]`. Closure routes opt in via the `stopwatch.inject` alias as a fallback. |
-
-#### Required topology
-
-`StopwatchInjectMiddleware` reads aggregates **after** `$next` returns, so it must wrap `StopwatchMiddleware::autoStart()` (which finishes the stopwatch in its own post-`$next` block):
-
-```php
-// bootstrap/app.php
-$middleware->append(StopwatchInjectMiddleware::class);          // outer — runs after()
-$middleware->append(StopwatchMiddleware::autoStart());          // inner — finishes the stopwatch
-
-```
-If the order is reversed, `finish()` runs after `inject` and the `started() && ended()` guard short-circuits silently. The middleware logs a one-shot debug message in non-production environments to surface this misconfiguration.
-
-#### Environment allow-list (security-critical default)
-
-`STOPWATCH_INJECT_ENVIRONMENTS` is a CSV (default `local`) of environments where injection may run. **Default-deny by environment name.** This is intentionally stricter than `! production` because the expanded panel exposes raw SQL with bound values via the existing query renderer; staging/dev/preview environments often serve real traffic and a `not-production` allow-rule would leak SQL + bindings to anyone who can reach those URLs.
-
-To enable injection in additional environments:
-
-```env
-STOPWATCH_INJECT_ENVIRONMENTS=local,docker
-
-```
-#### `#[ProfileViaStopwatch]` attribute
-
-Marker attribute (no parameters in v1, `TARGET_CLASS | TARGET_METHOD`):
-
-```php
-use SanderMuller\Stopwatch\ProfileViaStopwatch;
-
-#[ProfileViaStopwatch]
-final class OrdersController { /* ... */ }
-
-// or per-method
-final class DashboardController
-{
-    #[ProfileViaStopwatch]
-    public function show() { /* ... */ }
-}
-
-```
-#### Eligibility guards
-
-The middleware short-circuits on, in order: `mode === off`; Octane / Swoole bound; environment not in allow-list; non-2xx response; `Content-Type` not `text/html` (or charset present and not UTF-8); `Content-Encoding` set and not `identity`; `StreamedResponse` / `BinaryFileResponse`; ajax / wantsJson / pjax / `HX-Request` / `X-Livewire` / `X-Inertia` headers; stopwatch not started or not finished. XHTML (`application/xhtml+xml`) is **not** supported in v1.
-
-Octane / Swoole are hard-disabled at runtime: the `Stopwatch` singleton is per-process and would mix data across requests.
-
-#### Injector internals
-
-- Locates the **last** `</body>` via byte-oriented `strripos`; inserts toolbar with `substr_replace`. Both operate on byte offsets so multibyte (CJK, emoji) bodies round-trip without corruption.
-- Idempotent: an `<!--stopwatch-toolbar-->` marker prevents double-injection.
-- Strips `Content-Length`, `ETag`, `Last-Modified` after mutation to avoid cache poisoning (Symfony recomputes `Content-Length` on send).
-
-#### CSP note
-
-The toolbar emits a scoped inline `<style>` block (no external assets, no inline `<script>`, no `localStorage`). Strict CSP users need `style-src 'unsafe-inline'` (or a future nonce extension) to render the toolbar; the toggle uses CSS-only `<details>`.
-
-#### Env vars
-
-| Env var                          | Default        | Purpose                                                  |
-|----------------------------------|----------------|----------------------------------------------------------|
-| `STOPWATCH_INJECT`               | `off`          | `off` / `all` / `route` / `attribute`                    |
-| `STOPWATCH_INJECT_ENVIRONMENTS`  | `local`        | CSV allow-list of environment names                      |
-| `STOPWATCH_INJECT_POSITION`      | `bottom-right` | `bottom-right` / `bottom-left` / `top-right` / `top-left`|
-| `STOPWATCH_INJECT_SLOW_REQUEST_MS` | `500`        | Duration pill turns red at or above this many ms         |
+- `StopwatchInjectMiddleware` must be appended **before** `StopwatchMiddleware::autoStart()` so it reads aggregates after `finish()` runs. A debug log fires in non-production envs if the order is reversed.
+- Hard-disabled under Octane / Swoole (per-process singleton would mix data across requests). Skipped on non-2xx, non-HTML, ajax / Livewire / Inertia / HTMX, missing `</body>`, encoded responses, and streamed responses.
+- Injector is byte-oriented (`strripos` + `substr_replace`) so multibyte bodies round-trip cleanly. Idempotent via an `<!--stopwatch-toolbar-->` marker. `Content-Length` / `ETag` / `Last-Modified` are stripped after mutation to avoid cache poisoning.
+- The toolbar uses an inline `<style>` block (no external assets, no inline `<script>`). Strict CSP needs `style-src 'unsafe-inline'`.
 
 **Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.8.0...v0.9.0
 
 ## [v0.8.0](https://github.com/SanderMuller/Stopwatch/compare/v0.7.0...v0.8.0) - 2026-04-29
 
-### Run log: exception detail + Laravel Context
+### Added
 
-The `0.7.0` run log captured *what happened* (timing, queries, HTTP, memory) and *whether the request crashed* (`threw: true`). `0.8.0` adds two collectors that fill in *what crashed* and *who/what tenant the request belonged to*:
+- Exception detail in the run log: `exception_class`, `exception_file`, `exception_line` in frontmatter and a `## Exception` body section with a top-N stack trace (one level of `getPrevious()` rendered as `### Previous`). Off-by-default for messages (`STOPWATCH_LOG_EXCEPTIONS_MESSAGE=false`); trace frame count via `STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES` (default `10`).
+- Laravel `Context::all()` capture into a `## Context` body section (`STOPWATCH_LOG_COLLECT_CONTEXT=true`). Hidden context is never read. Default policy captures only **scalar** visible keys; arrays/objects require explicit allowlisting.
+- Promoted `ctx_<key>` frontmatter fields (configured via `options.context.frontmatter_keys`) so `stopwatch:runs:list` can sort/filter on context. New filter `--ctx key=value` (repeatable, AND-semantics) and `--exception-class=Foo` (suffix-match on the class FQCN).
+- `Stopwatch::withTransientContext()` / `Stopwatch::transientContext()` for caller-side capture (e.g. queued jobs that catch their own exceptions). New `Stopwatch::TRANSIENT_EXCEPTION` constant.
 
-1. **Exception detail** — when `StopwatchMiddleware` catches a `Throwable` on the way out of a request, the recorder persists `exception_class` / `exception_file` / `exception_line` into the YAML frontmatter and a `## Exception` body section with a top-N stack trace. One level of `getPrevious()` is rendered into a `### Previous` sub-section so wrapped exceptions show their underlying cause.
-2. **Laravel Context** — capture `Illuminate\Support\Facades\Context::all()` (visible keys only — hidden context is **never** read) into a `## Context` body section. Promoted scalar keys also land in frontmatter as `ctx_<key>` so `stopwatch:runs:list` can sort/filter on them.
+### Privacy
 
-#### Sample frontmatter
+- Trace `args` are never persisted regardless of options.
+- File paths are normalised to project-relative, `vendor/<package>/...`, or `<external>/<basename>` — host filesystem layout never leaks.
+- Exception messages opt-in. When enabled they are byte-capped (`mb_substr`) and maskable via `options.exceptions.mask_message_matching`.
+- Per-value cap of 4096 bytes on context body cells (`STOPWATCH_LOG_CONTEXT_VALUE_MAX_BYTES`); promoted `ctx_*` lines capped at 256 chars per value and 2048 bytes total.
 
-```yaml
----
-id: 01HZ8K9X4N5P2Q3R4S5T6U7V8W
-url: /admin/users
-threw: true
-exception_class: Illuminate\Validation\ValidationException
-exception_file: app/Http/Controllers/OrderController.php
-exception_line: 142
-ctx_trace_id: 01HZULID0000000000000000A
-ctx_tenant_id: acme
----
+### Internal
 
-
-```
-#### Knobs
-
-Off-by-default (`STOPWATCH_LOG_RUNS=true` is still required to enable the run log itself):
-
-| Env var                                      | Default | Purpose                                                              |
-|----------------------------------------------|---------|----------------------------------------------------------------------|
-| `STOPWATCH_LOG_COLLECT_EXCEPTIONS`           | `true`  | Capture `Throwable` class/file/line + top-N trace into the run log   |
-| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE`           | `false` | Persist `$e->getMessage()` (off — messages can leak validation/user input) |
-| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE_MAX_CHARS` | `500`   | Codepoint cap (`mb_substr`) before `…` is appended                   |
-| `STOPWATCH_LOG_EXCEPTIONS_TRACE_FRAMES`      | `10`    | Trace frame cap (`0` omits the trace section)                        |
-| `STOPWATCH_LOG_COLLECT_CONTEXT`              | `false` | Capture `Context::all()` (visible only) into the body                |
-| `STOPWATCH_LOG_CONTEXT_VALUE_MAX_BYTES`      | `4096`  | Per-value byte cap for context body cells                            |
-
-Array-typed knobs are config-only (env can't express arrays cleanly):
-
-| Config path                                  | Purpose |
-|----------------------------------------------|---------|
-| `options.exceptions.mask_message_matching`   | Patterns. Leading `/` = preg, otherwise substring; matches replaced with `***`. Applied AFTER cap. |
-| `options.exceptions.trace_exclude_paths`     | Substring matches against frame.file — hide vendor noise. |
-| `options.context.allow`                      | Allowlist. Empty = all visible **scalar** keys (rich objects opt in via explicit allowlist). |
-| `options.context.deny`                       | Denylist applied after allow. |
-| `options.context.mask`                       | Replace value with `***` while preserving the key. |
-| `options.context.frontmatter_keys`           | Promote scalar values to frontmatter as `ctx_<key>` (sortable from list view). |
-
-#### Privacy stance
-
-- **Trace `args` are NEVER persisted**, regardless of options. Only `file`, `line`, `class`, `function`, `type` from each frame.
-- **File paths never absolute.** A new three-case relativiser emits project-relative paths under `base_path()`, `vendor/<package>/...` paths under any `/vendor/` segment outside the project, or `<external>/<basename>` for unrelated files. Host filesystem layout never leaks.
-- **Exception messages opt-in** — `STOPWATCH_LOG_EXCEPTIONS_MESSAGE=false` by default. When enabled, capped via `mb_substr` (multi-byte safe) and maskable via patterns.
-- **Hidden context never read.** `Context::addHidden(...)` values are excluded by construction.
-- **Context type policy.** With default `allow=[]`, only **scalar** visible keys are captured. Arrays/objects (Eloquent models, etc.) require explicit allowlisting — no auto-leak of rich object internals.
-- **Per-value cap.** Context body values are byte-capped at 4096 (configurable); JSON-encoded for non-scalars; `<unencodable: <gettype>>` placeholder for resources/circular refs.
-- **Bounded frontmatter.** Promoted `ctx_*` lines are capped per-value (256 chars after encoding) and in total (2048 bytes cumulative), so `stopwatch:runs:list` still reads cheaply even with many promoted keys.
-
-#### Round-trip-safe codec for promoted values
-
-Promoted `ctx_*` frontmatter values use a new `ScalarCodec::encodeStringSafe()` path that quotes strings whose unquoted form would be auto-coerced by the existing decoder. `Context::add('user_code', '01')` round-trips as the string `"01"`, not the int `1`. `Context::add('flag', 'true')` round-trips as the string `"true"`, not the bool `true`. The existing typed-field path (`duration_ms: 487` → int `487`) is unchanged.
-
-`RunLogReader::FRONTMATTER_READ_BYTES` was bumped from `4096` to `8192` to accommodate up to ~16 promoted `ctx_*` keys without truncating the close-fence.
-
-#### Public API additions
-
-- `Stopwatch::TRANSIENT_EXCEPTION` constant — magic-string-free key for the transient-context channel.
-- `Stopwatch::withTransientContext(string $key, mixed $value): self` — for caller-side capture (e.g. queued jobs that catch their own exceptions).
-- `Stopwatch::transientContext(string $key): mixed` — recorder-side accessor; returns `null` for missing keys.
-- `RunLog\ExceptionDetail` / `ExceptionDetailRenderer` — pure data builders for `Throwable`-to-shape and shape-to-markdown conversion. `renderData(array)` lets callers render without going through a `Throwable` (useful for synthetic test frames).
-- `RunLog\ContextCapture` / `ContextCaptureRenderer` — Context filtering + rendering pipeline.
-- `RunLog\PathRelativiser::relativise(string)` — three-case path normaliser shared by exception detail.
-- `RunLog\ScalarCodec::encodeStringSafe(scalar|null)` — round-trip-safe encoder for arbitrary user-supplied scalar values.
-- `RunLog\Frontmatter::format(array $values, array $extraLines = [])` — second arg lets callers inject pre-rendered lines (used by ContextCapture for `ctx_*` promotion).
-
-#### List-view filters
-
-`stopwatch:runs:list` gains two new filters that compose with the existing `--slow` / `--threw` / `--limit`:
-
-- `--exception-class=Foo` — keeps only runs whose `exception_class` equals `Foo` exactly OR ends in `\Foo`. So `--exception-class=ValidationException` matches `Illuminate\Validation\ValidationException` without the user typing the full FQCN.
-- `--ctx key=value` — repeatable, AND-semantics. Filters on promoted `ctx_<key>` frontmatter fields. e.g. `--ctx tenant_id=acme --ctx user_id=42`.
-
-These compose with `--format=json` for grep-friendly tooling.
+- New round-trip-safe encoder for promoted scalars: `Context::add('user_code', '01')` round-trips as the string `"01"`, not the int `1`. Existing typed-field decoding is unchanged.
+- `RunLogReader::FRONTMATTER_READ_BYTES` bumped from `4096` to `8192` to accommodate ~16 promoted `ctx_*` keys without truncation.
 
 **Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.7.0...v0.8.0
 
 ## [v0.7.0](https://github.com/SanderMuller/Stopwatch/compare/v0.6.1...v0.7.0) - 2026-04-29
 
-### Run log
+### Added
 
-Persist every finished stopwatch run as a markdown file under `storage/stopwatch/runs/<ULID>.md` so you (or an AI assistant) can later inspect slow runs without re-running the workload. Off by default — enable with one env var:
+- Run log: every finished stopwatch run can be persisted as a markdown file under `storage/stopwatch/runs/<ULID>.md` with a YAML frontmatter header (id, recorded_at, duration_ms, url, method, status, query/HTTP/memory totals, slow flag). Off by default — enable with `STOPWATCH_LOG_RUNS=true`.
+- Three artisan commands: `stopwatch:runs:list` (with `--slow`, `--threw`, `--limit`, `--format=json`), `stopwatch:runs:show <id>`, and `stopwatch:runs:clear` (with `--keep=N`, `--days=N`, `--force`).
+- `Stopwatch::finalRunTotals()` exposes whole-run totals (including post-finish work). `Stopwatch::checkpoints()` returns an immutable snapshot. `Stopwatch::withRunContext()` / `pushRunContextProvider()` / `resolveRunContext()` for per-run context.
+- `RunLog\RunRecorder` interface for custom sinks (S3, Loki, Slack, etc.) wired via `Stopwatch::recordRunsTo(...)`.
+- `StopwatchMiddleware` now records runs even when the controller throws — the file is written with `threw: true` and the exception is re-thrown unchanged.
 
-```dotenv
-STOPWATCH_LOG_RUNS=true
+### Configuration knobs
 
+`STOPWATCH_LOG_DIR`, `STOPWATCH_LOG_MIN_DURATION_MS` (default `50`), `STOPWATCH_LOG_MAX_FILES` (`200`), `STOPWATCH_LOG_MAX_AGE_DAYS` (`7`), `STOPWATCH_LOG_DETAIL` (`summary` / `full`), `STOPWATCH_LOG_INCLUDE_BINDINGS` (`false`, PII opt-in), `STOPWATCH_LOG_SKIP_EMPTY` (`true`).
 
+### Notes
 
-```
-Each persisted file is plain markdown (the same shape as `stopwatch()->toMarkdown()`) with a YAML frontmatter header (`id`, `recorded_at`, `duration_ms`, `url`, `method`, `status`, `command`, query/HTTP/memory totals, slow-threshold flag) so listing is cheap. Three artisan commands are registered:
-
-```bash
-php artisan stopwatch:runs:list --slow --limit=10
-php artisan stopwatch:runs:show <id>
-php artisan stopwatch:runs:clear              # cleanup when done
-
-
-
-```
-Filter the list with `--slow` (only runs that exceeded `slow_threshold`) or `--threw` (only runs whose request crashed mid-flight). The `clear` command supports `--keep=N`, `--days=N`, and `--force` (all destructive paths prompt for confirmation unless `--force` is passed or the shell is non-interactive).
-
-#### What's tracked
-
-The run log captures whole-run totals — including work that happens **after the last checkpoint** — via new accumulators added to `Stopwatch`. The existing `toMarkdown()` body is unchanged. A new public `Stopwatch::finalRunTotals()` exposes the post-finish totals if you want to consume them in your own tooling, and `Stopwatch::checkpoints()` returns a `list<StopwatchCheckpoint>` snapshot.
-
-`StopwatchMiddleware` was extended to record runs even when the controller throws — the run-log file is written with `threw: true` in the frontmatter, then the exception is re-thrown unchanged. This means slow-then-crashing requests are still debuggable.
-
-#### Knobs
-
-| Env var                            | Default     | Purpose                                                              |
-|------------------------------------|-------------|----------------------------------------------------------------------|
-| `STOPWATCH_LOG_RUNS`               | `false`     | Master toggle                                                        |
-| `STOPWATCH_LOG_DIR`                | `storage/stopwatch/runs` | Override the storage path                                |
-| `STOPWATCH_LOG_MIN_DURATION_MS`    | `50`        | Skip runs faster than this (set `0` to log everything)               |
-| `STOPWATCH_LOG_MAX_FILES`          | `200`       | Hard cap on retained files (deterministic prune on every write)      |
-| `STOPWATCH_LOG_MAX_AGE_DAYS`       | `7`         | Soft age cap (5%-probabilistic prune by ULID timestamp)              |
-| `STOPWATCH_LOG_DETAIL`             | `summary`   | `summary` or `full` (full appends per-call SQL/HTTP detail tables)   |
-| `STOPWATCH_LOG_INCLUDE_BINDINGS`   | `false`     | Persist SQL bindings (off by default — PII opt-in)                   |
-| `STOPWATCH_LOG_SKIP_EMPTY`         | `true`      | Skip zero-checkpoint runs (typical for autoStart on idle routes)     |
-
-The run-log directory is auto-created on first write with a `.gitignore` (`*.md`) so the files never accidentally end up in commits. Writes use a tmp-file + atomic `rename()` so concurrent listings can't observe partial files. Recorder failures never propagate — disk errors are logged via `logger()->warning()` and the request completes normally.
-
-#### Skill update
-
-The bundled `profile-app` skill (used by Claude Code via `laravel/boost`) gains a new **Step 6 — Browse-and-debug from a run log** section that walks an AI assistant through enabling the log, reproducing, listing slow runs, and inspecting individual files via the artisan commands.
-
-#### Limitations
-
-The run log is Laravel-only and is **not supported under Laravel Octane / Swoole** in v1 — the `Stopwatch` singleton has mutable per-run state that is not safe for concurrent coroutines. Per-request stopwatch lifecycle is a separate, larger refactor.
-
-#### Public API additions
-
-- `Stopwatch::recordRunsTo(RunRecorder ...$recorders): self` — replace the recorder list.
-- `Stopwatch::withRunContext(array $context): self` — merge per-run context (cleared on `reset()` and after `finish()` dispatch).
-- `Stopwatch::pushRunContextProvider(callable $provider): self` — register a persistent context provider, evaluated lazily at finish.
-- `Stopwatch::resolveRunContext(): array` — merged context (provider output + per-run overrides).
-- `Stopwatch::finalRunTotals(): array` — whole-run totals (queries, HTTP, memory, slow-threshold flag).
-- `Stopwatch::checkpoints(): list<StopwatchCheckpoint>` — immutable snapshot of recorded checkpoints.
-- `RunLog\RunRecorder` interface for custom sinks (e.g. S3, Loki, Slack).
-
-Notification channel dispatch is now wrapped in `try/catch` internally (a throwing channel previously aborted `finish()` before any subsequent dispatch). No behaviour change for non-throwing channels.
-
-Safe to upgrade from 0.6.x with no code changes required.
+- Writes use a tmp-file + atomic `rename()`. Recorder failures are logged via `logger()->warning()` and never propagate.
+- The run-log directory is auto-created on first write with a `.gitignore` (`*.md`).
+- Notification channel dispatch is now wrapped in `try/catch` — a throwing channel no longer aborts subsequent dispatches inside `finish()`.
+- Not supported under Laravel Octane / Swoole. Safe to upgrade from 0.6.x with no code changes.
 
 **Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.6.1...v0.7.0
 
 ## [v0.6.1](https://github.com/SanderMuller/Stopwatch/compare/v0.6.0...v0.6.1) - 2026-04-28
 
-### AI assistant skill
+### Added
 
-This release ships a Claude Code [skill](https://docs.claude.com/en/docs/claude-code/skills) at `resources/boost/skills/profile-app/SKILL.md` that teaches an AI assistant how and when to reach for `stopwatch()` to investigate a slow request, command, or code path: checkpoint placement, when to enable query / memory / HTTP tracking, how to read the rendered card, and how to wire production tripwires.
-
-If you use [`laravel/boost`](https://github.com/laravel/boost), the skill is auto-discovered from `vendor/sandermuller/stopwatch/resources/boost/skills/` — run `php artisan boost:install`
+- Claude Code skill at `resources/boost/skills/profile-app/SKILL.md` teaching an AI assistant how and when to reach for `stopwatch()`. Auto-discovered by [`laravel/boost`](https://github.com/laravel/boost) via `vendor/sandermuller/stopwatch/resources/boost/skills/`.
 
 **Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.6.0...v0.6.1
 
@@ -262,44 +84,18 @@ If you use [`laravel/boost`](https://github.com/laravel/boost), the skill is aut
 
 ### Added
 
-- **`withHttpTracking()`** — captures outbound `Http::` facade calls per checkpoint with count, duration, and per-call detail (method, URL, status, individual transfer time). Per-call URLs are stripped of query strings at capture time so secrets in URLs don't leak through `toArray()` / `toJson()` / notifications. Up to 50 call detail rows are stored per checkpoint to bound memory; the count and total time still reflect every call beyond that. Status codes are color-coded in the render (green 2xx, amber 4xx, red 5xx + connection failures). Falls back to `RequestSending` → response wall-clock when `transferStats` is absent (e.g. `Http::fake()`) or when a `ConnectionFailed` ends the request, so timeouts no longer report as `0ms`. Configurable via `STOPWATCH_TRACK_HTTP=true`. **Limitation:** only requests through Laravel's `Http::` facade are captured — direct `new GuzzleHttp\Client` instances bypass Laravel's event dispatcher and are not tracked, same as Telescope.
-  
-- **Per-query SQL + bindings** captured by `withQueryTracking()` — every query's `sql` text, `bindings`, and individual `durationMs` are stored alongside the existing count/total time, capped at 50 per checkpoint. Surfaced in the new click-to-expand modal so you can see *which* query was slow, not just how many.
-  
-- **Click any row to expand** into a centered modal with the full label, all metadata, memory now/Δ/peak, every captured query (SQL + bindings + per-query duration), and every captured HTTP call. Backdrop click, ESC, or × button closes; only one row open at a time. Animated open (140ms backdrop fade + 180ms card slide-up). Pointer-cursor on rows is JS-gated, so the markup stays email-safe.
-  
-- **`when()` / `unless()`** conditional helpers on `Stopwatch` for fluent tracking opt-in chains:
-  
-  ```php
-  stopwatch()
-      ->withMemoryTracking()
-      ->when($trackQueries, fn ($sw) => $sw->withQueryTracking())
-      ->unless(app()->runningUnitTests(), fn ($sw) => $sw->withHttpTracking())
-      ->start();
-  
-  
-  
-  
-  
-  ```
-- **Footer totals** now include the cumulative HTTP count + duration alongside queries + memory.
-  
-- **Markdown summary** (`stopwatch()->toMarkdown()`) gains an HTTP totals line and an HTTP column in the per-checkpoint table when tracking is enabled.
-  
+- `withHttpTracking()` — captures outbound `Http::` facade calls per checkpoint (count, duration, per-call method/URL/status). Up to 50 call detail rows per checkpoint; query strings stripped from URLs at capture time so secrets don't leak. Falls back to `RequestSending` → response wall-clock when `transferStats` is absent (`Http::fake()`, `ConnectionFailed`). Direct `new GuzzleHttp\Client` instances are not tracked. `STOPWATCH_TRACK_HTTP=true` to enable.
+- Per-query SQL + bindings + per-query duration captured by `withQueryTracking()` (capped at 50 per checkpoint).
+- Click-to-expand modal for any row — full label, metadata, memory now/Δ/peak, every captured query, every captured HTTP call. Backdrop click / ESC / × closes; one row open at a time.
+- `when()` / `unless()` conditional helpers on `Stopwatch` for fluent tracking opt-in chains.
+- HTTP totals in the markdown summary (`toMarkdown()`) and the HTML footer.
 
 ### Changed
 
-- **Per-row chips** are suppressed when their tracked count is zero — quiet rows on a tracking-enabled profile no longer carry visually noisy `0q · 0ms` placeholders. Footer totals still show cumulative across all rows.
-- **Per-row chips** now render as `[icon] count · time` instead of `count<letter> · time` — the icon (db / globe) carries the meaning, removing the redundant `q` / `h` letter. Footer totals adopt the same shape.
-- **Modal in dark mode** is now visually elevated above the page surface via dedicated `--sw-modal-bg` / `--sw-modal-border` / `--sw-modal-divider` / `--sw-modal-text` CSS variables. The previous shared `--sw-bg` / `--sw-border` / `--sw-text` made the modal blend into the dark page; the new variables also prevent slow-row hover overrides (which pin `--sw-text` dark for the pink hover-bg) from leaking into the modal text.
-- **Backdrop opacity** strengthened from `rgba(15,23,42,.55)` to `rgba(0,0,0,.65)` — more visible darkening of the rows behind the modal in both color schemes.
-- **Connection-failed HTTP requests** now report their actual elapsed time (recovered from the matching `RequestSending` event) instead of always `0ms`.
-
-### Internal
-
-- Render code split into per-tracker helper classes — `StopwatchHttpRenderer`, `StopwatchQueryRenderer`, `StopwatchExpansionRenderer`, `StopwatchSlowStyling` — to keep per-class cognitive complexity within the project's PHPStan budget. All marked `@internal` with non-stable output.
-- HTTP listener registration is idempotent (guarded by a registered-once flag), and re-calling `withHttpTracking()` mid-run resets pending state cleanly. The same fix landed for `withQueryTracking()` and the new per-query detail buffer.
-- Test suite grew from 81 to 104 tests (303 assertions), including coverage for HTTP tracking lifecycle, per-query SQL capture, the 50-cap behavior, listener idempotency, modal expansion render, and dark-mode CSS variable wiring.
+- Per-row chips render as `[icon] count · time` (icon carries meaning) instead of `count<letter> · time`. Zero-count chips are suppressed entirely so quiet rows on a tracking-enabled profile aren't noisy.
+- Modal in dark mode is visually elevated above the page surface via dedicated `--sw-modal-*` CSS variables (previously inherited `--sw-bg` / `--sw-text` and blended into the page).
+- Backdrop opacity strengthened from `rgba(15,23,42,.55)` to `rgba(0,0,0,.65)`.
+- Connection-failed HTTP requests now report their actual elapsed time (recovered from `RequestSending`) instead of `0ms`.
 
 **Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.5.2...v0.6.0
 
@@ -307,9 +103,7 @@ If you use [`laravel/boost`](https://github.com/laravel/boost), the skill is aut
 
 ### Internal
 
-- `CHANGELOG.md` cleanup: removed duplicate `[0.5.0]` and `[0.5.1]` sections that the auto-changelog workflow had appended at end-of-file (instead of prepending above the latest entry) when the file contained an empty `## [Unreleased]` heading. Removed the `[Unreleased]` heading itself so future releases insert at the correct position automatically.
-
-No functional or API changes. Safe to upgrade from 0.5.1 with no code changes required.
+- Removed duplicate `[0.5.0]` / `[0.5.1]` sections appended at end-of-file by the auto-changelog workflow when `## [Unreleased]` was present. Removed the empty `[Unreleased]` heading itself so future releases insert at the correct position. No functional or API changes.
 
 **Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/0.5.1...v0.5.2
 
@@ -317,36 +111,28 @@ No functional or API changes. Safe to upgrade from 0.5.1 with no code changes re
 
 ### Added
 
-- **`profile-app` AI skill** shipped via `package-boost` to downstream Laravel projects. The skill activates when developers ask their AI assistant about slow requests, query counts, memory usage, or performance bottlenecks. It walks through choosing an entry point (middleware vs `measure()` vs manual checkpoints), placing checkpoints at decision boundaries, reading the rendered HTML output, and catching slow paths in production via `notifyIfSlowerThan()`. Auto-synced into `.claude/skills/` and `.github/skills/` so every consumer sees it without extra setup.
+- `profile-app` AI skill shipped via `package-boost` to downstream Laravel projects. Activates when developers ask their AI assistant about slow requests, query counts, memory usage, or performance bottlenecks. Auto-synced into `.claude/skills/` and `.github/skills/`.
 
 ## [0.5.0](https://github.com/SanderMuller/Stopwatch/compare/v0.4.2...v0.5.0) - 2026-04-26
 
 ### Added
 
-- `Stopwatch::toMarkdown(): string` — Markdown summary table covering total duration, per-checkpoint deltas, and per-checkpoint query/memory metrics when tracking is enabled. The HTML render now ships with a clipboard button in the header that copies the same output, so you can paste a profile into a chat with an AI assistant or a bug report without screenshots.
-- `Stopwatch::formatDuration(float $ms): string` — compact human-readable duration formatter that scales the unit so long profiles stay readable: `3.4ms`, `143ms`, `1.25s`, `1m 5s`. Used internally by the HTML render and by `totalRunDurationReadable()` / `timeSinceLastCheckpointReadable()`, and exposed as a public helper.
-- `StopwatchCheckpointCollection::totals(): array` — aggregates `queries`, `queryMs`, and `memoryDelta` across all recorded checkpoints, with `hasQueries` / `hasMemory` flags so callers can distinguish "tracking on, zero results" from "tracking off".
-- HTML render: cumulative query/memory totals in the footer when the matching tracking is enabled.
-- HTML render: empty state when no checkpoints have been recorded.
-- HTML render: light/dark theme — respects `prefers-color-scheme` and exposes a header toggle button that persists the user's choice in `localStorage` under the `sw-theme` key. The toggle is hidden when JavaScript is unavailable (graceful degradation in email clients).
-- HTML render: keyboard-accessible rows and overview-bar segments (`tabindex`, `:focus-visible` parity with `:hover`, `aria-label` on segments and the slow pill).
-- HTML render: `@media print` styles strip interactive chrome and let the card flow naturally for PDF exports.
-- HTML render: themable surfaces are exposed as CSS variables on `.sw-stopwatch` (e.g. `--sw-bg`, `--sw-text`, `--sw-border`, `--sw-hover-bg`, `--sw-tip-bg`) for downstream re-skinning.
-- `role="region"` and `aria-label="Stopwatch profile"` on the card root.
+- `Stopwatch::toMarkdown()` — markdown summary table covering total duration, per-checkpoint deltas, and per-checkpoint query/memory metrics. The HTML render gains a clipboard button that copies the same output (paste-into-chat / paste-into-bug-report friendly).
+- `Stopwatch::formatDuration(float $ms)` — compact human-readable formatter (`3.4ms`, `143ms`, `1.25s`, `1m 5s`). Used internally and exposed as a public helper.
+- `StopwatchCheckpointCollection::totals()` — aggregates `queries`, `queryMs`, `memoryDelta` across all checkpoints with `hasQueries` / `hasMemory` flags.
+- HTML render: light/dark theme respecting `prefers-color-scheme`, with a header toggle persisted in `localStorage` (`sw-theme`). Toggle hidden when JS is unavailable so email-client output stays graceful.
+- HTML render: keyboard-accessible rows and overview-bar segments (`tabindex`, `:focus-visible` parity with `:hover`, `aria-label`). `role="region"` and `aria-label="Stopwatch profile"` on the card root. `@media print` styles for PDF exports.
+- HTML render: cumulative query/memory totals in the footer when tracking is enabled. Empty-state message when no checkpoints have been recorded.
+- HTML render: themable surfaces exposed as CSS variables on `.sw-stopwatch` for downstream re-skinning.
 
 ### Changed
 
-- HTML render redesigned. Each row now shows a colored bar + share %, a stacked metric column (delta / queries / memory), inline metadata chips, and a per-row hover/focus tooltip with timestamp, cumulative time, share, queries, and memory. Slow checkpoints get a tiered red signal (light / medium / heavy) based on how many multiples of the slow threshold they exceeded. Hovering a row cross-highlights its segment in the overview bar (and vice versa).
-- Long-duration display is now consistent at unit boundaries — `999.6ms` renders as `1s`, `59.996s` as `1m 0s`, instead of the impossible `1000ms` / `60s` produced by the previous formatter.
-
-### Internal
-
-- Extracted HTML rendering for a row into `StopwatchCheckpointHtmlRenderer` and the icon set into `StopwatchIcons`. Both classes plus `StopwatchCheckpointCollection::render()` / `renderSegments()` are marked `@internal` — their signatures and output may change between minor releases without a deprecation cycle.
-- Tests split across `StopwatchTest`, `StopwatchHtmlRenderTest`, `StopwatchTrackingTest`, and `StopwatchNotificationTest` to keep the per-file scope manageable.
+- HTML render redesigned. Each row shows a colored bar + share %, a stacked metric column, inline metadata chips, and a per-row hover/focus tooltip. Slow checkpoints get a tiered red signal based on how many multiples of the slow threshold they exceed. Hovering a row cross-highlights its segment in the overview bar.
+- Long-duration display is consistent at unit boundaries — `999.6ms` renders as `1s`, `59.996s` as `1m 0s`, instead of the impossible `1000ms` / `60s` produced by the previous formatter.
 
 ### Upgrade notes
 
-The existing `Stopwatch::render()` API is unchanged — you'll just see the new card. If you've been overriding the rendered HTML's CSS, see `UPGRADING.md` for the new class names and the CSS variables you can override.
+`Stopwatch::render()` is unchanged — you'll just see the new card. If you've been overriding the rendered HTML's CSS, see `UPGRADING.md` for the new class names and CSS variables.
 
 ## [0.4.2](https://github.com/SanderMuller/Stopwatch/compare/v0.4.1...v0.4.2) - 2026-03-24
 
