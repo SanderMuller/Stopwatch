@@ -50,6 +50,7 @@
         "rector/type-perfect": "^2.1",
         "sandermuller/package-boost": "^0.10.0",
         "spaze/phpstan-disallowed-calls": "^4.6",
+        "stolt/lean-package-validator": "^5.7.1",
         "symplify/phpstan-extensions": "^12.0.1",
         "tomasvotruba/cognitive-complexity": "^1.0",
         "tomasvotruba/type-coverage": "^2.0.2"
