@@ -5,6 +5,7 @@ namespace SanderMuller\Stopwatch;
 use Barryvdh\Debugbar\LaravelDebugbar;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
+use Override;
 use SanderMuller\Stopwatch\Integrations\DebugbarCollector;
 use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
 use SanderMuller\Stopwatch\RunLog\RunLogServiceRegistrar;
@@ -13,6 +14,7 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
 
 final class ServiceProvider extends PackageServiceProvider
 {
+    #[Override]
     public function configurePackage(Package $package): void
     {
         $package

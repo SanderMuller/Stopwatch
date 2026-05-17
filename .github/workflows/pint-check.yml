@@ -1,0 +1,43 @@
+name: pint-check
+
+on:
+  pull_request:
+    paths:
+      - '**.php'
+      - 'pint.json'
+      - '.github/workflows/pint-check.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pint-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pint-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install composer dependencies
+        uses: ramsey/composer-install@v4
+
+      - name: Cache Pint results
+        uses: actions/cache@v5
+        with:
+          path: .cache/pint/
+          key: pint-cache-${{ hashFiles('pint.json') }}
+          restore-keys: pint-cache-
+
+      - name: Run Pint (test)
+        run: vendor/bin/pint --test

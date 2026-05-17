@@ -1,0 +1,48 @@
+name: rector-check
+
+on:
+  pull_request:
+    paths:
+      - '**.php'
+      - 'rector.php'
+      - '.github/workflows/rector-check.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rector-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rector-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install composer dependencies
+        uses: ramsey/composer-install@v4
+
+      - name: Cache Rector results
+        uses: actions/cache@v5
+        with:
+          path: |
+            .cache/rector/
+            .cache/rectorContainer/
+          key: rector-cache-${{ hashFiles('rector.php') }}
+          restore-keys: rector-cache-
+
+      - name: Ensure Rector cache directories exist
+        run: mkdir -p .cache/rector .cache/rectorContainer
+
+      - name: Run Rector (dry-run)
+        run: vendor/bin/rector process --dry-run
