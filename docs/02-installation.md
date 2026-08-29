@@ -23,7 +23,7 @@ stopwatch()->checkpoint('Load users');
 stopwatch()->toLog('Profile:');
 ```
 
-That is the whole loop: `start`, `checkpoint`, render. Nothing else is required — `checkpoint()` auto-starts the stopwatch if you skip `start()`.
+`checkpoint()` starts the stopwatch on its own, so `start()` is only needed to reset an earlier run.
 
 ## Where to go next
 

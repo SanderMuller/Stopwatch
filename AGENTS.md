@@ -1,4 +1,251 @@
-<package-boost-guidelines>
+## Always Capture Command Output
+
+Append `|| true` to every verification command (tests, linting, static analysis, style checks) so the output is captured even when the command fails. Without it a non-zero exit code can swallow the output, forcing a second run just to read the errors.
+
+```bash
+# CORRECT — output always visible
+vendor/bin/phpunit --filter=testName || true
+vendor/bin/pint --test || true
+
+# WRONG — output lost on failure, wastes a run
+vendor/bin/phpunit --filter=testName
+```
+
+---
+
+## Release Notes vs CHANGELOG
+
+`CHANGELOG.md` is **auto-populated by CI** on release. Do not hand-edit it.
+
+When you need to document a user-facing change for a release, write it to `RELEASE_NOTES_<version>.md` at the repo root (already gitignored via the `RELEASE_NOTES*.md` pattern). The CI release job picks it up and promotes it into `CHANGELOG.md` as part of the tag flow.
+
+If you find yourself editing `CHANGELOG.md` directly, stop — it will be overwritten.
+
+---
+
+## AskUserQuestion Phrasing
+
+When writing an `AskUserQuestion` question, option labels, or option descriptions, **avoid first- and second-person pronouns** — `I`, `me`, `my`, `we`, `our`, `you`, `your`. In that tool the user is reading a question *from* the assistant and answering it, so the roles are inverted and these pronouns are ambiguous: the reader cannot tell whether `I`/`my` means the assistant or themselves, nor whether `you`/`your` means them or the assistant.
+
+Name the actor explicitly instead — "the assistant" (these guidelines are shared across agents, so avoid hard-coding a product name like Claude or Copilot) and "the user" (or a concrete role) for the person answering — or rephrase to drop the pronoun entirely.
+
+```text
+❌ "Which approach do you want me to take?"
+❌ "Should I keep the existing tests you wrote?"
+
+✅ "Which approach should the assistant take?"
+✅ "Keep the existing tests, or replace them?"   (pronoun dropped)
+✅ "Should the assistant keep the tests already in the repo?"
+```
+
+This applies to every part of the question payload: the `question` text, each option `label`, and each option `description`.
+
+---
+
+## Fixing PHPStan Errors
+
+When fixing a PHPStan error, first decide whether it represents a runtime bug a test could catch — and if so, write that test before the fix.
+
+### Process
+
+1. **Assess testability** — does the error represent a runtime bug a test could reproduce (a wrong argument type, a missing method, an incorrect return type used downstream)?
+2. **Write the test first** — if a test can catch it, write a failing test that reproduces the error before applying the fix.
+3. **Fix the code** — apply the fix so both the PHPStan error and the new test pass.
+4. **Verify both** — confirm PHPStan reports no error and the test passes.
+
+### When to Write a Test
+
+Write a test when the PHPStan error indicates a fault that would surface at runtime:
+
+- A method call on a value of the wrong type
+- Missing or incorrect arguments to a function or method
+- A return-type mismatch that would break callers
+- Accessing a property or method that does not exist
+- Any type error that would manifest as a runtime exception
+
+### When to Skip the Test
+
+Skip the test when the error is purely static and cannot cause a runtime failure:
+
+- Missing return-type declarations
+- PHPDoc mismatches with no runtime impact
+- Unused variables or imports
+- Generic-type parameter issues
+
+---
+
+## Signed Commits
+
+Applies **only when the repository has commit signing enabled** (e.g. `git config commit.gpgsign` is `true`, or a `user.signingkey` / `gpg.format` is set). If signing is not enabled, this guideline does not apply — commit normally.
+
+### Never fall back to an unsigned commit
+
+When signing is enabled, every commit must be signed. If the signing backend or agent (1Password, `gpg-agent`, `ssh-agent`, a hardware key, etc.) is unavailable, locked, or not responding:
+
+- **Stop and surface the failure** to the user with the exact error.
+- **Do not** retry with `--no-gpg-sign`, unset `commit.gpgsign`, or otherwise produce an unsigned commit to "get past" the problem.
+
+A missing signature is a blocker to resolve (unlock the agent, re-authenticate 1Password, plug in the key), not a step to skip. Let the user fix the signing setup, then commit signed.
+
+---
+
+## Verification Before Completion
+
+Before claiming any work is complete or successful, run the verification command fresh and confirm the output. Evidence before claims, always.
+
+### Claims About How the Code Behaves — Trace, Don't Assume
+
+A claim about **how the code currently behaves** — a root cause, an existing mechanism, or present behavior — in a spec, PR, commit message, code-review finding, issue, comment, or answer must be traced to the actual code (or observed at runtime) **before** you write it, never asserted from plausibility. (This governs statements of *fact about the present code*; the *intended* future behavior a spec or PR proposes is fine when it's clearly framed as a requirement, proposal, or decision — not disguised as a fact about what already exists.) Every illustrative example must be one you actually observed, never invented to fit a guess. A wrong "why" is worse than none: reproduction steps, tests, QA testables, and the fix itself all get built on the stated cause, so one unverified guess corrupts everything derived from it. When you have not traced it, say so — mark it `NEEDS-CONFIRMATION` or ask — rather than asserting. (A ticket once claimed a list was "sorted by display name" and backed it with an example that could not occur; the sort actually keyed on an internal identifier — one grep away. The trace is cheap; the false premise is not.)
+
+### Required Before Any Completion Claim
+
+1. **Run** the relevant command (in the current message, not from memory)
+2. **Read** the full output
+3. **Confirm** it supports the claim
+4. **Then** state the result with evidence
+
+| Claim            | Required verification                                            |
+|------------------|------------------------------------------------------------------|
+| Tests pass       | The project's test command, output showing 0 failures            |
+| Code style clean | The project's formatter/style checker, output showing no changes |
+| Linting clean    | The project's linter, output showing 0 errors                    |
+| Types check      | The project's type checker, output showing 0 errors              |
+| Bug fixed        | The previously failing test now passes                           |
+| Feature complete | All related tests pass                                           |
+
+Use the project's own commands — check its `composer.json` / `package.json` scripts, CI config, or sibling docs to find them. Do not assume a specific tool.
+
+### Delegating the checks
+
+Where the project has dedicated quality-check skills synced, delegate to them — `backend-quality` for backend files, `frontend-quality` for frontend files, both when a change spans both. Otherwise, run the project's own equivalent commands directly.
+
+### Never Use Without Evidence
+
+- "should work now"
+- "that should fix it"
+- "looks correct"
+- "I'm confident this works"
+
+These phrases indicate missing verification. Run the command first, then report what actually happened.
+
+---
+
+## Voice — Which Rule, Which Surface
+
+This table decides which rule applies to a piece of text. Never apply both to the same words, and never guess.
+
+| Surface | Rule |
+|---|---|
+| Chat replies to the user | Simplified Technical English |
+| PR titles, descriptions, checklists | Simplified Technical English |
+| PR review comments and replies to reviewers | Simplified Technical English |
+| Issue and ticket descriptions, comments, QA testables | Simplified Technical English |
+| Spec files | Simplified Technical English |
+| `AskUserQuestion` questions, options, descriptions | Simplified Technical English — plus the pronoun rules in the `AskUserQuestion Phrasing` guideline, when the project has it |
+| Commit messages | Simplified Technical English — an issue key the project's commit format requires stays as it is |
+| Text an end user reads — in-app copy, translations, release notes, help text, seed content | The project's own tone-of-voice rules, not this guideline |
+| Suggested translation strings inside an issue or ticket | The project's own tone-of-voice rules — the prose around them stays Simplified Technical English |
+| Code and code comments | Neither — the language guidelines own those |
+| Prose the user asks for in a named style, or an artifact whose own skill defines its voice — `humanizer`, `readme`, `release-notes` | That instruction or skill wins. This guideline does not override it |
+
+A surface the table does not list gets Simplified Technical English, unless an end user reads it. Then it gets the project's tone-of-voice rules. A project without documented tone-of-voice rules gets Simplified Technical English everywhere.
+
+This guideline governs **how a sentence is built**. It never overrides what a document is allowed to say: an issue-format doc still owns issue content, and a PR template still owns its sections.
+
+### Simplified Technical English
+
+**Write in ASD-STE100 Simplified Technical English.** Say the same thing in fewer, simpler words.
+
+- One idea per sentence. Keep procedural sentences to 20 words or less, descriptive sentences to 25 or less.
+- Use the active voice. Name the actor. Use the passive only when the actor is unknown.
+- Use simple tenses only — simple present, simple past, simple future, infinitive, imperative. No complex constructions built from auxiliary verbs.
+- Use one word for one meaning. Use the same word for the same thing every time — do not vary it for style.
+- Keep articles (`the`, `a`, `an`) and other small words that make a sentence clear. Simplified is not clipped.
+- One topic per paragraph, six sentences at most. Use a list when there is more than one item.
+- Cut filler, hedging, and repetition. Do not restate the question or summarise what you are about to say.
+- Give the answer first. Add detail after it, and only if the reader needs it.
+- Use everyday words. Write "use", not "utilise"; "help", not "facilitate". Keep technical terms exact — a class name, a flag, or an error message is quoted as it is.
+- Write Latin abbreviations out: "for example", not "eg"; "that is", not "ie"; "and so on", not "etc".
+- Do not shout. No exclamation marks, no capitals for emphasis, and no bold used only to raise the volume. Structural bold that a template defines — `**Before:**`, `**Expected:**`, a table header, a labelled line — is not emphasis and stays.
+- No metaphors, no clichés, no jokes that carry meaning the plain sentence does not.
+
+The sentence limits, the tense list, the article rule, and the paragraph limit come from the ASD-STE100 writing rules. The everyday-words, Latin-abbreviation, no-shouting, and no-metaphor rules come from the GOV.UK content style guide.
+
+---
+
+# Laravel Package Guidelines
+
+These guidelines supplement the framework-agnostic Package Boost
+Guidelines (`foundation.md`) for Composer packages that target
+Laravel. A consumer receives both files, composed — read this one
+together with `foundation.md`, not instead of it.
+
+Apply this file only when `composer.json` declares a Laravel
+dependency — a `require.illuminate/*` entry or
+`require.laravel/framework`. A framework-agnostic package ignores
+everything below.
+
+## Laravel Context
+
+A Laravel package has no host application of its own. A Laravel
+kernel is booted only at test time, by Orchestra Testbench. The base
+test case is `Orchestra\Testbench\TestCase`.
+
+- `composer.json`'s `require.illuminate/*` (or
+  `require.laravel/framework`) defines the supported Laravel range.
+  Check it before using a version-specific framework API.
+- The service provider is the package's entry point into a host
+  app. One per package, named `{PackageStudly}ServiceProvider`,
+  registered under `extra.laravel.providers` for package discovery.
+- Test fixtures — migrations, routes, views, factories — live under
+  `workbench/`, not `tests/`. Testbench's conventions place them
+  there; follow them.
+
+## Use `vendor/bin/testbench`, not `php artisan`
+
+Running artisan directly against the package fails — there is no
+host application. Use Testbench's binary, which boots a kernel
+first:
+
+| Instead of | Use |
+|---|---|
+| `php artisan test` | `vendor/bin/pest` or `vendor/bin/phpunit` |
+| `php artisan tinker` | `vendor/bin/testbench tinker` |
+| `php artisan make:*` | Create files manually under `src/` |
+| `php artisan vendor:publish` | `vendor/bin/testbench vendor:publish` |
+
+Register the package's service provider in `testbench.yaml` under
+`providers:` so Testbench boots it. Published files land in
+`workbench/` by default, not the `config/` or `resources/` of a
+host app.
+
+### Commands that require `laravel/boost`
+
+These apply only when the package has `laravel/boost` as a dev
+dependency. Skip them if Boost is not installed — `boost sync`
+prints a warning and moves on.
+
+| Instead of | Use |
+|---|---|
+| `php artisan boost:install` | `vendor/bin/testbench boost:install` |
+| `php artisan boost:mcp` | `vendor/bin/testbench boost:mcp` |
+
+## Cross-Version Compatibility
+
+Supporting multiple Laravel and PHP majors in one release is routine
+for a Laravel package. Constraints use `||` between major ranges
+(`^12.0||^13.0`), and CI runs a matrix that includes `prefer-lowest`
+so the declared floor is actually exercised.
+
+- Activate the `cross-version-laravel-support` skill **before**
+  writing version-spanning code.
+- Activate the `ci-matrix-troubleshooting` skill **after** a matrix
+  cell has failed.
+- See the `package-development` skill for the Testbench and
+  `workbench/` layout.
+
+---
+
 # Package Boost Guidelines
 
 These guidelines replace Laravel Boost's default foundation for
@@ -70,6 +317,16 @@ behaviour is pinned down.
 - Do not add dependencies without approval; every new `require` is a
   constraint downstream consumers inherit.
 
+## Extending boost-core
+
+If your package authors a custom `FileEmitter` (to write a file like
+`.mcp.json` into the host during `boost sync`), declare the
+`boost-extension` tag in your `boost.php` `withTags([...])`. That pulls
+the `writing-file-emitter` skill — gated off by default so consumers
+who do not extend the engine don't carry it, which is why an
+emitter-authoring package has to opt in explicitly. The same tag pulls
+`skill-authoring` for writing boost-family skills.
+
 ## Documentation Files
 
 Only create or edit documentation (README, CHANGELOG, docs/) when
@@ -80,113 +337,40 @@ explicitly requested or when a behaviour change requires it.
 Be concise. Focus on what changed and why. Skip restating what the
 diff already shows.
 
-## If your package targets Laravel
-
-The rest of this document is Laravel-specific. Skip it if the package
-is framework-agnostic — `composer.json` should make that obvious (no
-`require.illuminate/*`, no `require.laravel/framework`).
-
-### Laravel context
-
-A Testbench-provided Laravel application is spun up only at test
-time. Base test case is `Orchestra\Testbench\TestCase`.
-`composer.json`'s `require.illuminate/*` (or
-`require.laravel/framework`) defines the supported Laravel range —
-check it before using version-specific framework APIs.
-
-### Use `vendor/bin/testbench`, not `php artisan`
-
-Running artisan commands directly against the package fails — there is
-no host application. Use Testbench's binary:
-
-| Instead of | Use |
-|---|---|
-| `php artisan test` | `vendor/bin/pest` or `vendor/bin/phpunit` |
-| `php artisan tinker` | `vendor/bin/testbench tinker` |
-| `php artisan make:*` | Create files manually under `src/` |
-| `php artisan vendor:publish` | `vendor/bin/testbench vendor:publish` |
-
-#### Commands that require `laravel/boost`
-
-These only apply when the package has `laravel/boost` as a dev
-dependency. Skip if Boost isn't installed — `boost sync`
-prints a warning and moves on.
-
-| Instead of | Use |
-|---|---|
-| `php artisan boost:install` | `vendor/bin/testbench boost:install` |
-| `php artisan boost:mcp` | `vendor/bin/testbench boost:mcp` |
-
-Register the package's service provider in `testbench.yaml` under
-`providers:` so Testbench boots it. Published files land in
-`workbench/` by default, not `config/` or `resources/` of a host app.
-
-### Cross-Version Compatibility
-
-Supporting multiple Laravel / PHP majors is routine for Laravel
-packages. Activate `cross-version-laravel-support` **before** writing
-the code; activate `ci-matrix-troubleshooting` **after** a matrix cell
-has failed.
-
 ---
 
-## Release Notes vs CHANGELOG
+# Release Automation
 
-`CHANGELOG.md` is **auto-populated by CI** on release. Do not hand-edit it.
+Conventions the package-boost family shares for release flow. The
+procedural detail lives in the `pre-release` and `release-notes`
+skills — loaded on-demand, not pinned here.
 
-When you need to document a user-facing change for a release, write it to `RELEASE_NOTES_<version>.md` at the repo root (already gitignored via the `RELEASE_NOTES*.md` pattern). The CI release job picks it up and promotes it into `CHANGELOG.md` as part of the tag flow.
+## CHANGELOG is CI-managed
 
-If you find yourself editing `CHANGELOG.md` directly, stop — it will be overwritten.
+`.github/workflows/update-changelog.yml` prepends the release body to
+`CHANGELOG.md` on `release: released` and commits to the release's
+target branch (typically `main`). Don't hand-edit `CHANGELOG.md` as
+part of a release. Post-release typo fixes are committed directly.
 
-## Verification Before Completion
+## Release notes live in `internal/release-notes-<version>.md`
 
-Before claiming any work is complete or successful, run the verification command fresh and confirm the output. Evidence before claims, always.
+`internal/` is gitignored — drafts stay local. The notes file becomes
+the release body. The first line pins the green commit so the pre-tag
+gate can fail closed on drift:
 
-### Required Before Any Completion Claim
-
-1. **Run** the relevant command (in the current message, not from memory)
-2. **Read** the full output
-3. **Confirm** it supports the claim
-4. **Then** state the result with evidence
-
-### During Development (after each change)
-
-| Claim            | Required verification                            |
-|------------------|--------------------------------------------------|
-| Code style clean | `vendor/bin/pint --dirty --format agent` output  |
-| Tests pass       | Related tests pass via `--filter` or specific file |
-| Bug fixed        | Previously failing test now passes               |
-
-### At Completion Only (feature/phase done, before PR)
-
-These are slow checks — only run them once at the very end:
-
-| Claim             | Required verification                                           |
-|-------------------|-----------------------------------------------------------------|
-| Rector ran clean  | `vendor/bin/rector process` showing 0 changes                   |
-| PHPStan clean     | `vendor/bin/phpstan analyse --memory-limit=2G` showing 0 errors |
-| Full suite passes | `vendor/bin/pest` output showing 0 failures                     |
-| Feature complete  | All above checks pass                                           |
-
-### Always Capture Command Output
-
-Append `|| true` to all verification commands (tests, linting, type checks) so the output is always captured, even on failure. Without it, a non-zero exit code can hide the output, forcing an expensive second run just to read the errors.
-
-```bash
-# CORRECT — output always visible
-vendor/bin/pest --filter=testName || true
-vendor/bin/pint --dirty --format agent || true
-
-# WRONG — output lost on failure, wastes time re-running
-vendor/bin/pest --filter=testName
+```
+<!-- verified-sha: <full sha> -->
 ```
 
-### Never Use Without Evidence
+## Tag and title
 
-- "should work now"
-- "that should fix it"
-- "looks correct"
-- "I'm confident this works"
+- Tag: bare version (`0.7.0`) — Composer and Packagist read the tag.
+- Release title: `v`-prefixed (`v0.7.0`) — cosmetic.
+- Notes file: bare (`internal/release-notes-0.7.0.md`).
 
-These phrases indicate missing verification. Run the command first, then report what actually happened.
-</package-boost-guidelines>
+## Agent handoff
+
+Agents stop at the ready-to-tag handoff. The user runs the pre-tag
+gate and publishes the release (GitHub UI, `gh`, or otherwise). See
+the `pre-release` skill for the full procedure and the no-release-create
+rule.

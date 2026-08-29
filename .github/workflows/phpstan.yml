@@ -9,13 +9,21 @@ on:
       - '**.php'
       - 'phpstan.neon.dist'
       - 'phpstan-baseline.neon'
+      - 'composer.json'
+      - 'composer.lock'
       - '.github/workflows/phpstan.yml'
   pull_request:
     paths:
       - '**.php'
       - 'phpstan.neon.dist'
       - 'phpstan-baseline.neon'
+      - 'composer.json'
+      - 'composer.lock'
       - '.github/workflows/phpstan.yml'
+
+concurrency:
+  group: phpstan-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   phpstan:
@@ -24,6 +32,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # 2.37.0
@@ -42,4 +52,4 @@ jobs:
           restore-keys: phpstan-result-cache-
 
       - name: Run PHPStan
-        run: ./vendor/bin/phpstan --error-format=github --no-interaction
+        run: ./vendor/bin/phpstan --error-format=github --no-interaction --memory-limit=2G

@@ -405,9 +405,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->trackingMemory = true;
         $this->lastMemoryUsage = memory_get_usage();
 
-        if ($this->runStartMemory === null) {
-            $this->runStartMemory = $this->lastMemoryUsage;
-        }
+        $this->runStartMemory ??= $this->lastMemoryUsage;
 
         return $this;
     }

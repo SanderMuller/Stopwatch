@@ -1,18 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			rawMessage: 'Call to function is_numeric() with 1779049074.724874 will always evaluate to true.'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: src/Integrations/DebugbarCollector.php
-
-		-
-			rawMessage: Casting to float something that's already float.
-			identifier: cast.useless
-			count: 1
-			path: src/Integrations/DebugbarCollector.php
-
-		-
 			rawMessage: 'Cannot call method notify() on mixed.'
 			identifier: method.nonObject
 			count: 1

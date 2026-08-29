@@ -8,10 +8,31 @@ on:
             - synchronize
             - ready_for_review
 
+        paths:
+            - '**.php'
+            - 'phpunit.xml'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'testbench.yaml'
+            - 'workbench/**'
+            - '.github/workflows/run-tests.yml'
+
     push:
+        paths:
+            - '**.php'
+            - 'phpunit.xml'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'testbench.yaml'
+            - 'workbench/**'
+            - '.github/workflows/run-tests.yml'
 
 permissions:
   contents: read
+
+concurrency:
+  group: run-tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -36,6 +57,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2

@@ -7,8 +7,10 @@
 
 # >>> package-boost (managed) >>>
 .agents/ export-ignore
+.ai/ export-ignore
 .cache/ export-ignore
 .claude/ export-ignore
+.config/ export-ignore
 .cursor/ export-ignore
 .editorconfig export-ignore
 .gitattributes export-ignore
@@ -30,7 +32,6 @@ tests/ export-ignore
 # <<< package-boost (managed) <<<
 
 # Project-specific export-ignores (outside managed block).
-.ai/                    export-ignore
 docs/                   export-ignore
 .cursorrules            export-ignore
 .idea/                  export-ignore

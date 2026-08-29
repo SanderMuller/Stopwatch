@@ -11,7 +11,7 @@ User::all();
 stopwatch()->checkpoint('Load users'); // 1q / 2.3ms
 ```
 
-Config: `STOPWATCH_TRACK_QUERIES=true`. Requires `illuminate/database`. Up to 50 statements per checkpoint are kept with bindings and per-query duration, shown when you expand a row in the [HTML report](05-html-report.md) — enough to see *which* query was slow, not only how many ran.
+Config: `STOPWATCH_TRACK_QUERIES=true`. Requires `illuminate/database`. Up to 50 statements per checkpoint are kept with bindings and per-query duration, shown when you expand a row in the [HTML report](05-html-report.md), which is what identifies the slow statement itself.
 
 ## Memory
 

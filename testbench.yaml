@@ -1,4 +1,11 @@
 laravel: '@testbench'
 
 providers:
-  - SanderMuller\PackageBoost\PackageBoostServiceProvider
+  - Laravel\Boost\BoostServiceProvider
+  - SanderMuller\Stopwatch\ServiceProvider
+  - Workbench\App\Providers\WorkbenchServiceProvider
+
+env:
+  - CACHE_STORE=array
+  - SESSION_DRIVER=array
+  - APP_KEY=base64:jbW57vt1JZaeclbYNTZBLbn5RTjGQnmLgJIytF9BvlQ=

@@ -1,0 +1,13 @@
+# Tag-pinned (not SHA-pinned) GitHub Actions is this project's deliberate,
+# repo-wide convention — every workflow under .github/workflows/ uses tags
+# like `actions/checkout@v6`. Disable rather than list per-file ignores,
+# since every workflow follows the same pattern.
+rules:
+  unpinned-uses:
+    disable: true
+  # update-changelog.yml needs persist-credentials (the default) so
+  # git-auto-commit-action can push the CHANGELOG commit with the
+  # checkout's stored credential — this is deliberate, not an oversight.
+  artipacked:
+    ignore:
+      - update-changelog.yml

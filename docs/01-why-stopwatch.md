@@ -18,7 +18,7 @@ stopwatch()->toLog('Profile:');
 //   Total: 15ms
 ```
 
-Reach for it when a request, command, or job feels slow and standing up an APM is more than the question deserves. It works in tests, in CI, and in production.
+Use it when a request, command, or job feels slow and you would rather not stand up an APM to find out why. It runs in tests and CI as well as in production.
 
 ## What it is not
 
@@ -26,4 +26,4 @@ An APM. There is no aggregation across requests, no service map, no alerting on 
 
 ## Compatibility
 
-PHP 8.3+ · Laravel 11.x / 12.x / 13.x. The profiler core runs [without Laravel](12-standalone.md); query tracking, the toolbar, and the run log do not.
+PHP 8.3+ · Laravel 12.x / 13.x. The profiler core runs [without Laravel](12-standalone.md); query tracking, the toolbar, and the run log do not.

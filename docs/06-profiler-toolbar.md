@@ -54,7 +54,7 @@ Reversed, injection silently no-ops. Outside production the middleware logs a on
 <details>
 <summary>Eligibility guards</summary>
 
-Injection is skipped for: non-2xx responses; a `Content-Type` that is not `text/html` (or a charset that is not UTF-8); `Content-Encoding` set to anything but `identity`; `StreamedResponse` and `BinaryFileResponse`; ajax, `wantsJson`, pjax, `HX-Request`, `X-Livewire` and `X-Inertia` requests; and any run where the stopwatch was never started or never finished. XHTML (`application/xhtml+xml`) is unsupported in v1.
+Injection is skipped for: non-2xx responses; a `Content-Type` that is not `text/html` (or a charset that is not UTF-8); `Content-Encoding` set to anything but `identity`; `StreamedResponse` and `BinaryFileResponse`; ajax, `wantsJson`, pjax, `HX-Request`, `X-Livewire` and `X-Inertia` requests; and any run where the stopwatch was never started or never finished. XHTML (`application/xhtml+xml`) is not supported.
 
 </details>
 

@@ -8,6 +8,9 @@ use DebugBar\DataCollector\Renderable;
 use SanderMuller\Stopwatch\Stopwatch;
 use SanderMuller\Stopwatch\StopwatchCheckpoint;
 
+/**
+ * @phpstan-type Checkpoint array{label: string, timeSinceLastCheckpointMs: int, timeSinceLastCheckpointFormatted: string, totalTimeElapsedMs: int, metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null, httpCount: int|null, httpTimeMs: float|null}
+ */
 final class DebugbarCollector extends DataCollector implements Renderable
 {
     public function __construct(
@@ -69,15 +72,19 @@ final class DebugbarCollector extends DataCollector implements Renderable
             return (float) $startTime->format('U.u');
         }
 
-        if (defined('LARAVEL_START') && is_numeric(LARAVEL_START)) {
-            return (float) LARAVEL_START;
+        if (defined('LARAVEL_START')) {
+            $laravelStart = constant('LARAVEL_START');
+
+            if (is_numeric($laravelStart)) {
+                return (float) $laravelStart;
+            }
         }
 
         return microtime(true);
     }
 
     /**
-     * @param array{label: string, timeSinceLastCheckpointMs: int, timeSinceLastCheckpointFormatted: string, totalTimeElapsedMs: int, metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null, httpCount: int|null, httpTimeMs: float|null} $checkpoint
+     * @param Checkpoint $checkpoint
      * @return array{label: string, start: float, relative_start: float, end: float, relative_end: float, duration: float, duration_str: string, params: array<string, mixed>, collector: null}
      */
     private function buildMeasure(array $checkpoint, float $requestStart): array
@@ -100,7 +107,7 @@ final class DebugbarCollector extends DataCollector implements Renderable
     }
 
     /**
-     * @param array{metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null, httpCount: int|null, httpTimeMs: float|null} $checkpoint
+     * @param Checkpoint $checkpoint
      * @return array<string, mixed>
      */
     private function buildParams(array $checkpoint): array

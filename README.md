@@ -9,9 +9,9 @@
 
 A lightweight profiler for PHP and Laravel. Add checkpoints to your code, measure closures, track queries, memory and outbound HTTP, and see where the time goes.
 
-Reach for it when a request, command, or job feels slow and standing up an APM is more than the question deserves. Works in tests, CI, and production.
+Use it when a request, command, or job feels slow and you would rather not stand up an APM to find out why. It runs in tests and CI as well as in production.
 
-**PHP 8.3+ · Laravel 11.x / 12.x / 13.x**
+**PHP 8.3+ · Laravel 12.x / 13.x**
 
 ## Installation
 
@@ -41,7 +41,7 @@ stopwatch()->toLog('Profile:');
 //   Total: 15ms
 ```
 
-That is the whole loop: `start`, `checkpoint`, render.
+`checkpoint()` starts the stopwatch on its own, so `start()` is only needed to reset an earlier run.
 
 Render it as a self-contained HTML card instead:
 
@@ -53,7 +53,7 @@ Render it as a self-contained HTML card instead:
 
 ## Documentation
 
-Full documentation lives at **https://sandermuller.github.io/Stopwatch/**.
+Full documentation is published at https://sandermuller.github.io/Stopwatch/.
 
 - [Why Stopwatch?](https://sandermuller.github.io/Stopwatch/why-stopwatch) — what it answers, and when an APM is the better tool
 - [Installation](https://sandermuller.github.io/Stopwatch/installation) · [Checkpoints](https://sandermuller.github.io/Stopwatch/checkpoints) · [Query, memory and HTTP tracking](https://sandermuller.github.io/Stopwatch/tracking)
@@ -72,15 +72,15 @@ composer test
 
 ## Changelog
 
-Please see [CHANGELOG](CHANGELOG.md) for a list of recent changes.
+[CHANGELOG](CHANGELOG.md) lists the recent changes.
 
 ## Contributing
 
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
+[CONTRIBUTING](CONTRIBUTING.md) covers local setup and the pull-request process.
 
 ## Security vulnerabilities
 
-Please review [our security policy](../../security/policy) on how to report security vulnerabilities.
+Report a vulnerability through [the security policy](../../security/policy) rather than a public issue.
 
 ## Credits
 

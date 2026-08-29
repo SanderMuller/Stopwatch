@@ -64,7 +64,7 @@ final class RunsClearCommand extends Command
         $prompt = match (true) {
             $keep === null && $days === null => 'Delete ALL recorded Stopwatch runs?',
             $keep !== null && $days === null => "Keep only the most recent {$keep} run(s) and delete the rest?",
-            $keep === null && $days !== null => "Delete runs older than {$days} day(s)?",
+            $keep === null => "Delete runs older than {$days} day(s)?",
             default => "Keep only the most recent {$keep} run(s) AND delete runs older than {$days} day(s)?",
         };
 

@@ -77,7 +77,7 @@ final class StopwatchInjectMiddleware
             return false;
         }
 
-        if (! ($this->stopwatch->started() && $this->stopwatch->ended())) {
+        if (! $this->stopwatch->started() || ! $this->stopwatch->ended()) {
             $this->logOrderingHintOnce();
 
             return false;
