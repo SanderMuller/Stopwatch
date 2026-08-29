@@ -27,3 +27,11 @@ features:
     details: Every finished run on disk, crashes included, so a slow request can be read after the fact instead of reproduced.
     link: /run-log
 ---
+
+## The report
+
+`@stopwatch` renders a run as a self-contained card: every checkpoint, its share of the total, and the queries behind it. Every style is inline, so it drops into any page or email body.
+
+![The Stopwatch HTML report, listing checkpoints with their duration, share of the run and query counts](../rendered-stopwatch.png)
+
+[More on the HTML report](05-html-report.md)

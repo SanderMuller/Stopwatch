@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineConfig } from 'vitepress'
 import { link, pages, sections, slug } from './pages'
@@ -13,6 +13,30 @@ const absoluteLinks = (markdown: string): string => markdown.replace(
     /\]\((\d+-[a-z-]+)\.md(#[a-z0-9-]*)?\)/g,
     (_, file: string, anchor = '') => `](${site}${slug(file)}${anchor})`,
 )
+
+/**
+ * An image outside srcDir (`../rendered-stopwatch.png`) resolves for GitHub and for the HTML build,
+ * where Vite emits it into assets/ under a content hash. The plain-text copies get neither, so the
+ * path is rewritten to the published asset — matched by basename, since only Vite knows the hash.
+ */
+const absoluteAssets = (markdown: string, outDir: string): string => {
+    let emitted: string[] = []
+
+    try {
+        emitted = readdirSync(join(outDir, 'assets'))
+    } catch {
+        return markdown
+    }
+
+    return markdown.replace(
+        /\]\(\.\.\/([\w-]+)\.(\w+)\)/g,
+        (whole, name: string, ext: string) => {
+            const hashed = emitted.find(file => file.startsWith(`${name}.`) && file.endsWith(`.${ext}`))
+
+            return hashed ? `](${site}assets/${hashed})` : whole
+        },
+    )
+}
 
 const description = 'Lightweight profiler for PHP and Laravel. Add checkpoints, measure closures, track queries, memory and outbound HTTP, and read the result as an HTML card, a toolbar, Server-Timing headers, or a persistent run log.'
 
@@ -34,17 +58,48 @@ export default defineConfig({
     ],
 
     /**
-     * Two plain-text builds beside the HTML, for readers that are not browsers. `llms-full.txt` is
-     * every page in reading order behind one URL; each page is also written as `<slug>.md` for a
-     * reader that wants one page rather than all of them.
+     * Three plain-text builds beside the HTML, for readers that are not browsers
+     * (https://llmstxt.org). `llms.txt` is the index, `llms-full.txt` is every page in reading
+     * order behind one URL, and each page is also written as `<slug>.md` for a reader that wants
+     * one page rather than all of them.
+     *
+     * The index's link list is generated from the same page list as the sidebar, so it cannot
+     * drift from the site. Its preamble is read from `docs/llms-intro.md` when that file exists,
+     * because what an agent most needs up front is the package's own rules, which no generator
+     * would write. Each link uses the page's `agent` description where one is set, falling back to
+     * the sidebar `blurb` — an agent picking a page to fetch wants different wording from a reader
+     * deciding whether to keep scrolling.
      */
     buildEnd: async ({ outDir, srcDir }) => {
-        const parts: string[] = ['# Stopwatch', '', `> Profiler for PHP and Laravel. Full documentation, ${pages.length} pages, in reading order.`, '']
+        mkdirSync(outDir, { recursive: true })
+
+        let intro: string
+        try {
+            intro = readFileSync(join(srcDir, 'llms-intro.md'), 'utf-8').trim()
+        } catch {
+            intro = ['# Stopwatch', '', `> ${description}`].join('\n')
+        }
+
+        const index: string[] = [intro, '', '## Formats', '',
+            `- [llms-full.txt](${site}llms-full.txt): every page below, in reading order, in one fetch`,
+            `- Any page is also served as markdown at its own URL plus \`.md\` (for example [checkpoints.md](${site}checkpoints.md))`,
+            '']
+
+        for (const section of sections) {
+            index.push(`## ${section.text}`, '')
+            for (const page of section.pages) {
+                index.push(`- [${page.text}](${site}${slug(page.file)}): ${page.agent ?? page.blurb}`)
+            }
+            index.push('')
+        }
+
+        writeFileSync(join(outDir, 'llms.txt'), index.join('\n'))
+
+        const parts: string[] = ['# Stopwatch', '', `> ${description} Full documentation, ${pages.length} pages, in reading order. Index: ${site}llms.txt`, '']
 
         for (const page of pages) {
-            const markdown = absoluteLinks(readFileSync(join(srcDir, `${page.file}.md`), 'utf-8'))
+            const markdown = absoluteAssets(absoluteLinks(readFileSync(join(srcDir, `${page.file}.md`), 'utf-8')), outDir)
 
-            mkdirSync(outDir, { recursive: true })
             writeFileSync(join(outDir, `${slug(page.file)}.md`), markdown)
             parts.push(`<!-- ${site}${slug(page.file)} -->`, '', markdown.trim(), '')
         }
@@ -53,7 +108,8 @@ export default defineConfig({
     },
 
     // README.md is the GitHub-facing folder index; the site's home is home.md.
-    srcExclude: ['README.md'],
+    // llms-intro.md is the llms.txt preamble, not a page.
+    srcExclude: ['README.md', 'llms-intro.md'],
 
     rewrites: {
         'home.md': 'index.md',

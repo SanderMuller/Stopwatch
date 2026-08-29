@@ -7,7 +7,10 @@
 export type DocPage = {
     file: string
     text: string
+    /** Sidebar and "next page" wording: a reason for a reader to keep going. */
     blurb: string
+    /** llms.txt wording, when an agent choosing a page needs something more specific than the blurb. */
+    agent?: string
 }
 
 export type DocSection = {
