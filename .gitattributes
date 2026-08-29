@@ -31,6 +31,7 @@ tests/ export-ignore
 
 # Project-specific export-ignores (outside managed block).
 .ai/                    export-ignore
+docs/                   export-ignore
 .cursorrules            export-ignore
 .idea/                  export-ignore
 .windsurfrules          export-ignore

@@ -15,6 +15,11 @@ node_modules
 npm-debug.log
 yarn-error.log
 
+# Docs site (VitePress) — build output and deps, never the sources.
+docs/node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+
 # MacOS
 .DS_STORE
 
