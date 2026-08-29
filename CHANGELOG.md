@@ -8,6 +8,24 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.11.0](https://github.com/SanderMuller/Stopwatch/compare/v0.10.0...v0.11.0) - 2026-08-29
+
+<!-- verified-sha: 8616bacc2daa697ccd13a6511e00e2a7dd72501f -->
+### Breaking
+
+- Dropped Laravel 11 support; `illuminate/*` now requires `^12.0 || ^13.0`. Upgrade to Laravel 12 or later before updating this package.
+
+### Changed
+
+- Moved the documentation to https://sandermuller.github.io/Stopwatch/; the README now links to it.
+
+### Internal
+
+- Upgraded the tooling baseline: larastan 3.10, boost-core 1.8, and the PHPStan and Rector rule packs.
+- Fixed two GitHub Actions advisories in `shivammathur/setup-php` (GHSA-5wxr-w449-57cm, GHSA-pqwm-q9pv-ph8r).
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.10.0...v0.11.0
+
 ## [v0.10.0](https://github.com/SanderMuller/Stopwatch/compare/v0.9.1...v0.10.0) - 2026-05-06
 
 Renames the bundled Laravel Boost skill from `profile-app` to `stopwatch-profile` so the activation name is package-prefixed and collision-safe in host apps that ship their own skills.
