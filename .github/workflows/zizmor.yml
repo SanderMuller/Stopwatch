@@ -39,7 +39,7 @@ jobs:
           persist-credentials: false
 
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@v0.6.0
+        uses: zizmorcore/zizmor-action@v0.6.2
         with:
           # Gate via exit code + inline annotations. SARIF upload to code scanning
           # needs GitHub Advanced Security — enable advanced-security once GHAS is on.
