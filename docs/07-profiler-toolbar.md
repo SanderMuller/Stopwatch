@@ -11,11 +11,14 @@ STOPWATCH_INJECT=all                      # off | all | route | attribute
 STOPWATCH_INJECT_ENVIRONMENTS=local       # CSV, default-deny by environment name
 STOPWATCH_INJECT_POSITION=bottom-right    # bottom-right | bottom-left | top-right | top-left
 STOPWATCH_INJECT_SLOW_REQUEST_MS=500      # duration pill turns red at or above this
+STOPWATCH_INJECT_TRACK=true               # track queries, memory and HTTP while the toolbar is on
 ```
 
 Clear the config cache afterwards if the app caches it.
 
 The service provider prepends the two middleware for you, `StopwatchInjectMiddleware` outer and `StopwatchMiddleware::autoStart()` inner, once the mode is not `off`, `APP_ENV` is on the allow-list, and the app is not on Octane. A plain install leaves the pipeline untouched.
+
+An active toolbar also turns query, memory and HTTP [tracking](05-tracking.md) on, whatever `STOPWATCH_TRACK_QUERIES`, `STOPWATCH_TRACK_MEMORY` and `STOPWATCH_TRACK_HTTP` say. Without it the query, HTTP and memory columns render as dashes. Set `STOPWATCH_INJECT_TRACK=false` to leave those settings alone.
 
 Autostart finishes the stopwatch on every web request, so a `Server-Timing` header appears and the [run log](09-run-log.md) and [notifications](11-notifications.md) start recording when those are on.
 

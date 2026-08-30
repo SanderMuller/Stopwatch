@@ -2,6 +2,7 @@
 
 namespace SanderMuller\Stopwatch;
 
+use Exception;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
 use Override;
@@ -54,7 +55,32 @@ final class ServiceProvider extends PackageServiceProvider
         $router->aliasMiddleware(StopwatchInjectMiddleware::ALIAS, StopwatchInjectAlias::class);
     }
 
-    /** @phpstan-ignore complexity.functionLike */
+    /**
+     * Toolbar-implied tracking is best effort. `withQueryTracking()` and
+     * `withHttpTracking()` throw when illuminate/database or illuminate/http
+     * is missing, and this package requires neither, so a minimal install
+     * would otherwise fail while resolving the Stopwatch singleton. An
+     * explicit `track_*` config still throws: the host asked for it.
+     */
+    private function enableTracker(bool $explicit, bool $impliedByToolbar, callable $enable): void
+    {
+        if ($explicit) {
+            $enable();
+
+            return;
+        }
+
+        if (! $impliedByToolbar) {
+            return;
+        }
+
+        try {
+            $enable();
+        } catch (Exception) {
+            // The component is absent; that column stays empty in the toolbar.
+        }
+    }
+
     private function configureStopwatch(Stopwatch $stopwatch): Stopwatch
     {
         /** @var array<string, mixed> $config */
@@ -82,17 +108,11 @@ final class ServiceProvider extends PackageServiceProvider
             $stopwatch->slowCheckpointThreshold($config['slow_threshold']);
         }
 
-        if (($config['track_queries'] ?? false) === true) {
-            $stopwatch->withQueryTracking();
-        }
+        $toolbar = InjectSettings::tracksForToolbar();
 
-        if (($config['track_memory'] ?? false) === true) {
-            $stopwatch->withMemoryTracking();
-        }
-
-        if (($config['track_http'] ?? false) === true) {
-            $stopwatch->withHttpTracking();
-        }
+        $this->enableTracker(($config['track_queries'] ?? false) === true, $toolbar, $stopwatch->withQueryTracking(...));
+        $this->enableTracker(($config['track_memory'] ?? false) === true, $toolbar, $stopwatch->withMemoryTracking(...));
+        $this->enableTracker(($config['track_http'] ?? false) === true, $toolbar, $stopwatch->withHttpTracking(...));
 
         /** @var array<class-string<StopwatchNotificationChannel>> $channels */
         $channels = $config['notification_channels'] ?? [];

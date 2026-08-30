@@ -23,7 +23,7 @@ final readonly class InjectMiddlewareRegistrar
 {
     public static function register(Application $app): void
     {
-        if (! self::enabled($app)) {
+        if (! self::enabled()) {
             return;
         }
 
@@ -37,26 +37,12 @@ final readonly class InjectMiddlewareRegistrar
         $kernel->prependMiddleware(StopwatchInjectMiddleware::class);
     }
 
-    private static function enabled(Application $app): bool
+    private static function enabled(): bool
     {
-        // Octane keeps the Stopwatch singleton alive across requests, so a
-        // stale run would be reported. The injector refuses there as well.
-        if ($app->bound('octane')) {
-            return false;
-        }
-
-        if (config('stopwatch.enabled', true) === false) {
-            return false;
-        }
-
         if (config('stopwatch.inject.auto_register', true) === false) {
             return false;
         }
 
-        if (config('stopwatch.inject.mode', 'off') === 'off') {
-            return false;
-        }
-
-        return InjectEnvironmentGate::allows(config('stopwatch.inject.allowed_environments', 'local'));
+        return InjectSettings::toolbarActive();
     }
 }

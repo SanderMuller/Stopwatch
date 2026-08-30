@@ -262,6 +262,12 @@ return [
     |   which emits a `Server-Timing` header and feeds the run log and
     |   notifications. Set it to false to register the middleware by hand.
     |
+    | track:
+    |   The toolbar prints a query count, an HTTP count and a memory delta per
+    |   checkpoint, which need the trackers above. While the toolbar is active
+    |   it turns all three on for you, whatever `track_queries`, `track_memory`
+    |   and `track_http` say. Set it to false to keep those columns empty.
+    |
     | Required topology: register `StopwatchInjectMiddleware` globally OUTER
     | to `StopwatchMiddleware::autoStart()`. The injector reads aggregates
     | post-$next, so autostart's `finish()` must run first (i.e. inner).
@@ -271,6 +277,7 @@ return [
     'inject' => [
         'mode' => env('STOPWATCH_INJECT', 'off'),
         'auto_register' => (bool) env('STOPWATCH_INJECT_AUTO_REGISTER', true),
+        'track' => (bool) env('STOPWATCH_INJECT_TRACK', true),
         'allowed_environments' => env('STOPWATCH_INJECT_ENVIRONMENTS', 'local'),
         'position' => env('STOPWATCH_INJECT_POSITION', 'bottom-right'),
         'slow_request_threshold_ms' => (int) env('STOPWATCH_INJECT_SLOW_REQUEST_MS', 500),
