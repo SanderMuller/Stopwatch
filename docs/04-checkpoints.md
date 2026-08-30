@@ -6,7 +6,7 @@ stopwatch()->checkpoint('Second checkpoint');
 stopwatch()->lap('Third checkpoint'); // alias for checkpoint()
 ```
 
-`checkpoint()` auto-starts the stopwatch. Call `start()` explicitly to begin a fresh measurement — it resets any checkpoints already recorded.
+`checkpoint()` auto-starts the stopwatch. Call `start()` explicitly to begin a fresh measurement; it resets any checkpoints already recorded.
 
 Attach metadata to any checkpoint:
 

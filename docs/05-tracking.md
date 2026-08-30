@@ -35,7 +35,7 @@ stopwatch()->checkpoint('Sync order'); // 2h / 156ms
 
 Config: `STOPWATCH_TRACK_HTTP=true`. Up to 50 call rows per checkpoint are kept (method, URL, status, duration); counts and totals stay accurate beyond that.
 
-**Only requests through Laravel's `Http::` facade are captured.** A direct `new GuzzleHttp\Client` bypasses the event dispatcher and is invisible to the tracker — the same limitation Telescope has. Wrap those in `stopwatch()->measure()` instead.
+**Only requests through Laravel's `Http::` facade are captured.** A direct `new GuzzleHttp\Client` bypasses the event dispatcher and is invisible to the tracker, the same limitation Telescope has. Wrap those in `stopwatch()->measure()` instead.
 
 ## Combining
 

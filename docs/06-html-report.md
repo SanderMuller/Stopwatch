@@ -20,7 +20,7 @@ Every style is inline, so the card drops into any host page or email body withou
 ## What the card shows
 
 - **Duration formatting** that scales the unit: `3.4ms`, `143ms`, `1.25s`, `1m 5s`. Also public: `Stopwatch::formatDuration(1247)`.
-- **Slow severity tiers** — light (1–2×), medium (2–5×), heavy (5×+) past `slow_threshold`, so a barely-slow row reads differently from a hopeless one.
+- **Slow severity tiers.** Light (1–2×), medium (2–5×), heavy (5×+) past `slow_threshold`, so a barely-slow row reads differently from a hopeless one.
 - **Overview bar** with one segment per checkpoint, sized by share. Hovering a row cross-highlights its segment.
 - **Row tooltip** with the full label, timestamp, delta, share, and query and memory metrics.
 - **Click a row** for a modal with all metadata, memory current/delta/peak, every captured query (SQL, bindings, duration), and every HTTP call.

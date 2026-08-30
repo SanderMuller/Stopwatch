@@ -14,7 +14,7 @@ ctx_trace_id: 01HZULID0000000000000000A
 ---
 ```
 
-**Stack-trace `args` are never persisted** — only `file`, `line`, `class`, `function` and `type` per frame. **The exception message is off by default**, because application messages routinely quote validation input or user data. Turn it on with `STOPWATCH_LOG_EXCEPTIONS_MESSAGE=true`; it is then capped by `STOPWATCH_LOG_EXCEPTIONS_MESSAGE_MAX_CHARS` and can be redacted through `options.exceptions.mask_message_matching`.
+**Stack-trace `args` are never persisted:** only `file`, `line`, `class`, `function` and `type` per frame. **The exception message is off by default**, because application messages routinely quote validation input or user data. Turn it on with `STOPWATCH_LOG_EXCEPTIONS_MESSAGE=true`; it is then capped by `STOPWATCH_LOG_EXCEPTIONS_MESSAGE_MAX_CHARS` and can be redacted through `options.exceptions.mask_message_matching`.
 
 For a job or command that catches its own exception, hand it over before `finish()`:
 

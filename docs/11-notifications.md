@@ -11,7 +11,7 @@ stopwatch()->checkpoint('Generate PDF');
 stopwatch()->finish();
 ```
 
-Set it once in a service provider, or from the environment — paired with `StopwatchMiddleware`, every slow request then notifies on its own:
+Set it once in a service provider, or from the environment. Paired with `StopwatchMiddleware`, every slow request then notifies on its own:
 
 ```dotenv
 STOPWATCH_NOTIFY_THRESHOLD=500

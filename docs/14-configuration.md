@@ -27,8 +27,8 @@ Publish the annotated config with `php artisan vendor:publish --tag=stopwatch-co
 | `STOPWATCH_LOG_DIR` | `storage/stopwatch/runs` | storage path |
 | `STOPWATCH_LOG_MIN_DURATION_MS` | `50` | skip faster runs; `0` logs everything |
 | `STOPWATCH_LOG_DETAIL` | `summary` | `full` appends per-call SQL and HTTP tables |
-| `STOPWATCH_LOG_INCLUDE_BINDINGS` | `false` | persist SQL bindings in `full` mode — **PII opt-in** |
-| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE` | `false` | persist `$e->getMessage()` — **PII opt-in** |
+| `STOPWATCH_LOG_INCLUDE_BINDINGS` | `false` | persist SQL bindings in `full` mode (**PII opt-in**) |
+| `STOPWATCH_LOG_EXCEPTIONS_MESSAGE` | `false` | persist `$e->getMessage()` (**PII opt-in**) |
 | `STOPWATCH_LOG_COLLECT_CONTEXT` | `false` | capture visible `Context::all()` |
 
 <details>

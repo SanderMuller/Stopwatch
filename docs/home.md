@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Stopwatch
   text: Profiling for PHP and Laravel
-  tagline: Mark the path, read the gaps. Checkpoints, query, memory and HTTP tracking, and a persistent run log — without standing up an APM.
+  tagline: Mark the path, read the gaps. Checkpoints, query, memory and HTTP tracking, and a persistent run log, without standing up an APM.
   actions:
     - theme: brand
       text: Why Stopwatch?
@@ -13,8 +13,8 @@ hero:
       text: Installation
       link: /installation
     - theme: alt
-      text: GitHub
-      link: https://github.com/SanderMuller/Stopwatch
+      text: Getting started
+      link: /getting-started
 
 features:
   - title: Checkpoints

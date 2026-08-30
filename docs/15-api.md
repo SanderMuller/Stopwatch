@@ -23,7 +23,7 @@ stopwatch()->checkpoint('Skipped'); // no-op
 stopwatch()->enable();
 ```
 
-Disabled calls are no-ops with near-zero overhead — the same switch as `STOPWATCH_ENABLED=false`.
+Disabled calls are no-ops with near-zero overhead, the same switch as `STOPWATCH_ENABLED=false`.
 
 ## Serialization
 
@@ -40,4 +40,4 @@ stopwatch()->dump(); // dump the instance
 stopwatch()->dd();   // dump and die
 ```
 
-`dd()` finishes the run before inspecting its arguments, so `dd($exception)` does not capture the exception — see the [run-log limitations](09-run-log.md#limitations).
+`dd()` finishes the run before inspecting its arguments, so `dd($exception)` does not capture the exception; see the [run-log limitations](09-run-log.md#limitations).

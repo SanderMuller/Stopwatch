@@ -2,7 +2,7 @@
 
 The package ships an AI [skill](https://docs.claude.com/en/docs/claude-code/skills) that teaches an assistant when to reach for `stopwatch()`: where to put checkpoints, which trackers to turn on, how to read the card, how to drive the [run-log](09-run-log.md) commands, and how to wire production tripwires.
 
-With [`laravel/boost`](https://github.com/laravel/boost) installed it is auto-discovered from `vendor/sandermuller/stopwatch/resources/boost/skills/` — run `php artisan boost:install`. Any Boost-compatible agent works: Claude Code, Cursor, Copilot.
+With [`laravel/boost`](https://github.com/laravel/boost) installed it is auto-discovered from `vendor/sandermuller/stopwatch/resources/boost/skills/`; run `php artisan boost:install`. Any Boost-compatible agent works: Claude Code, Cursor, Copilot.
 
 ## Letting it drive
 

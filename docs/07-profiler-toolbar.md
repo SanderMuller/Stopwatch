@@ -4,7 +4,7 @@ A Debugbar-style toolbar injected into eligible HTML responses: per-request dura
 
 ```dotenv
 STOPWATCH_INJECT=all                      # off | all | route | attribute
-STOPWATCH_INJECT_ENVIRONMENTS=local       # CSV — default-deny by environment name
+STOPWATCH_INJECT_ENVIRONMENTS=local       # CSV, default-deny by environment name
 STOPWATCH_INJECT_POSITION=bottom-right    # bottom-right | bottom-left | top-right | top-left
 STOPWATCH_INJECT_SLOW_REQUEST_MS=500      # duration pill turns red at or above this
 ```
@@ -27,20 +27,20 @@ The injector reads aggregates after `$next` returns, so it must wrap autostart:
 use SanderMuller\Stopwatch\StopwatchInjectMiddleware;
 use SanderMuller\Stopwatch\StopwatchMiddleware;
 
-$middleware->append(StopwatchInjectMiddleware::class);   // outer — runs after()
-$middleware->append(StopwatchMiddleware::autoStart());   // inner — finishes the stopwatch
+$middleware->append(StopwatchInjectMiddleware::class);   // outer, runs after()
+$middleware->append(StopwatchMiddleware::autoStart());   // inner, finishes the stopwatch
 ```
 
 Reversed, injection silently no-ops. Outside production the middleware logs a one-shot debug line to flag it.
 
 ## Modes
 
-- **`all`** — every eligible HTML response.
-- **`route`** — only routes carrying the `stopwatch.inject` alias:
+- **`all`**: every eligible HTML response.
+- **`route`**: only routes carrying the `stopwatch.inject` alias:
   ```php
   Route::middleware('stopwatch.inject')->get('/dashboard', /* ... */);
   ```
-- **`attribute`** — only when the resolved controller class or method carries `#[ProfileViaStopwatch]`:
+- **`attribute`**: only when the resolved controller class or method carries `#[ProfileViaStopwatch]`:
   ```php
   use SanderMuller\Stopwatch\ProfileViaStopwatch;
 
@@ -60,4 +60,4 @@ Injection is skipped for: non-2xx responses; a `Content-Type` that is not `text/
 
 **Octane and Swoole are hard-disabled.** The `Stopwatch` singleton is per-process, so under Octane the toolbar would render a previous request's data.
 
-Under a strict CSP the toolbar needs `style-src 'unsafe-inline'` — it emits one scoped inline `<style>` block, and no script, external asset, or `localStorage`.
+Under a strict CSP the toolbar needs `style-src 'unsafe-inline'`, because it emits one scoped inline `<style>` block, and no script, external asset, or `localStorage`.

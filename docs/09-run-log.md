@@ -44,9 +44,9 @@ Pruning is probabilistic and in-process (5%). For a predictable schedule:
 3. `php artisan stopwatch:runs:list --slow --limit=10`
 4. `php artisan stopwatch:runs:show <id>` on the worst offender.
 5. Read the **Share** column and find the row that owns most of it:
-   - high `q` on one row — N+1 candidate. Set `STOPWATCH_LOG_DETAIL=full` and reproduce to see the SQL.
-   - high `h` — an outbound API loop. Same flag adds method, URL and status per call.
-   - `queries_total` far above the sum of per-checkpoint queries — work is happening after your last checkpoint. Add one near the response and re-profile.
+   - high `q` on one row: an N+1 candidate. Set `STOPWATCH_LOG_DETAIL=full` and reproduce to see the SQL.
+   - high `h`: an outbound API loop. Same flag adds method, URL and status per call.
+   - `queries_total` far above the sum of per-checkpoint queries: work is happening after your last checkpoint. Add one near the response and re-profile.
 6. Split the hot row with more checkpoints inside it. Fix, and go back to step 2.
 
 ## Limitations
@@ -55,4 +55,4 @@ Pruning is probabilistic and in-process (5%). For a predictable schedule:
 
 `Stopwatch::dd($exception)` does not capture the exception: `dd()` calls `finish()` before inspecting its arguments, so the recorder runs first. Use `$stopwatch->withTransientContext(Stopwatch::TRANSIENT_EXCEPTION, $e)->dd()`.
 
-Writes never throw — a disk failure is logged via `logger()->warning()` and the request completes.
+Writes never throw. A disk failure is logged via `logger()->warning()` and the request completes.
