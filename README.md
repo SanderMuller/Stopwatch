@@ -7,9 +7,7 @@
 [![License](https://img.shields.io/github/license/sandermuller/stopwatch.svg?style=flat-square)](LICENSE)
 [![Laravel Compatibility](https://badge.laravel.cloud/badge/sandermuller/stopwatch?style=flat)](https://packagist.org/packages/sandermuller/stopwatch)
 
-A lightweight profiler for PHP and Laravel. Add checkpoints to your code, measure closures, track queries, memory and outbound HTTP, and see where the time goes.
-
-Use it when a request, command, or job feels slow and you would rather not stand up an APM to find out why. It runs in tests and CI as well as in production.
+A lightweight profiler for PHP and Laravel. Add checkpoints, measure closures, track queries, memory and outbound HTTP, and see where the time goes. Use it when a request, command or job feels slow and an APM is more than you need. It runs in production, in tests and in CI.
 
 **PHP 8.3+ · Laravel 12.x / 13.x**
 
@@ -17,9 +15,6 @@ Use it when a request, command, or job feels slow and you would rather not stand
 
 ```bash
 composer require sandermuller/stopwatch
-```
-
-```bash
 php artisan vendor:publish --tag=stopwatch-config   # optional
 ```
 
@@ -53,7 +48,7 @@ Render it as a self-contained HTML card instead:
 
 ## Documentation
 
-Full documentation is published at https://sandermuller.github.io/Stopwatch/.
+Published at https://sandermuller.github.io/Stopwatch/.
 
 - [Why Stopwatch?](https://sandermuller.github.io/Stopwatch/why-stopwatch): what it answers, and when an APM is the better tool
 - [Installation](https://sandermuller.github.io/Stopwatch/installation) · [Getting started](https://sandermuller.github.io/Stopwatch/getting-started) · [Checkpoints](https://sandermuller.github.io/Stopwatch/checkpoints) · [Query, memory and HTTP tracking](https://sandermuller.github.io/Stopwatch/tracking)

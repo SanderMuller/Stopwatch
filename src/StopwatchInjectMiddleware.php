@@ -94,44 +94,7 @@ final class StopwatchInjectMiddleware
     /** @param array<string, mixed> $config */
     private function environmentAllowed(array $config): bool
     {
-        $raw = $config['allowed_environments'] ?? 'local';
-        $allowed = $this->parseAllowedEnvironments($raw);
-
-        if ($allowed === []) {
-            return false;
-        }
-
-        return app()->environment(...$allowed) !== false;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function parseAllowedEnvironments(mixed $raw): array
-    {
-        if (is_string($raw)) {
-            return $this->normaliseNames(explode(',', $raw));
-        }
-
-        if (is_array($raw)) {
-            $strings = array_filter($raw, is_string(...));
-
-            return $this->normaliseNames($strings);
-        }
-
-        return [];
-    }
-
-    /**
-     * @param array<int|string, string> $names
-     * @return list<string>
-     */
-    private function normaliseNames(array $names): array
-    {
-        return array_values(array_filter(
-            array_map(trim(...), $names),
-            static fn (string $name): bool => $name !== '',
-        ));
+        return InjectEnvironmentGate::allows($config['allowed_environments'] ?? 'local');
     }
 
     private function isHtmlContentType(Response $response): bool

@@ -6,6 +6,7 @@ use Rector\Config\RectorConfig;
 use Rector\DeadCode\Rector\PropertyProperty\RemoveNullPropertyInitializationRector;
 use Rector\Naming\Rector\Class_\RenamePropertyToMatchTypeRector;
 use Rector\Naming\Rector\ClassMethod\RenameParamToMatchTypeRector;
+use Rector\Php55\Rector\String_\StringClassNameToClassConstantRector;
 use Rector\Php74\Rector\Closure\ClosureToArrowFunctionRector;
 use Rector\Php84\Rector\Param\ExplicitNullableParamTypeRector;
 use Rector\PHPUnit\CodeQuality\Rector\Class_\AddSeeTestAnnotationRector;
@@ -33,6 +34,12 @@ return RectorConfig::configure()
         RemoveNullPropertyInitializationRector::class,
         RenameParamToMatchTypeRector::class,
         RenamePropertyToMatchTypeRector::class,
+        // Debugbar's class names stay strings on purpose: only one of the two
+        // namespaces exists in any given install, so neither may be a hard
+        // `::class` reference.
+        StringClassNameToClassConstantRector::class => [
+            __DIR__ . '/src/Integrations/DebugbarRegistrar.php',
+        ],
         __DIR__ . '/.cache',
     ])
     ->withParallel(300, 15, 15)

@@ -1,3 +1,23 @@
+# Upgrading from Stopwatch 0.11.x to 0.12.x
+
+## The toolbar middleware registers itself
+
+`STOPWATCH_INJECT` alone now turns the toolbar on. When the mode is not `off`, the environment is on the `STOPWATCH_INJECT_ENVIRONMENTS` allow-list, and the app does not run on Octane, the service provider prepends `StopwatchInjectMiddleware` and `StopwatchMiddleware::autoStart()` to the global middleware stack.
+
+If you already registered both by hand, nothing changes: the kernel de-duplicates the entries, and the prepended injector stays outer to your appended autostart.
+
+If you had `STOPWATCH_INJECT` set to `all`, `route` or `attribute` in an allowed environment but never registered the middleware, the toolbar starts appearing after this upgrade. Autostart also finishes the stopwatch on every web request, which emits a `Server-Timing` header and feeds the run log and notifications when those are on. To keep the old behaviour, set:
+
+```dotenv
+STOPWATCH_INJECT_AUTO_REGISTER=false
+```
+
+## Debugbar v4 timeline now registers
+
+The Debugbar integration looked for the v3 class name `Barryvdh\Debugbar\LaravelDebugbar`. Debugbar v4 ships as `fruitcake/laravel-debugbar` under `Fruitcake\LaravelDebugbar` with no back-compat alias, so the timeline tab never appeared on v4. Both class names are now checked. No action is required.
+
+---
+
 # Upgrading from Stopwatch 0.9.x to 0.10.x
 
 ## Bundled Boost skill renamed

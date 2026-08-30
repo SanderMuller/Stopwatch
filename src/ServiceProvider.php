@@ -2,11 +2,10 @@
 
 namespace SanderMuller\Stopwatch;
 
-use Barryvdh\Debugbar\LaravelDebugbar;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Blade;
 use Override;
-use SanderMuller\Stopwatch\Integrations\DebugbarCollector;
+use SanderMuller\Stopwatch\Integrations\DebugbarRegistrar;
 use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
 use SanderMuller\Stopwatch\RunLog\RunLogServiceRegistrar;
 use Spatie\LaravelPackageTools\Package;
@@ -43,7 +42,9 @@ final class ServiceProvider extends PackageServiceProvider
         });
 
         $this->registerInjectAlias();
-        $this->registerDebugbar();
+
+        InjectMiddlewareRegistrar::register($this->app);
+        DebugbarRegistrar::register($this->app);
     }
 
     private function registerInjectAlias(): void
@@ -51,19 +52,6 @@ final class ServiceProvider extends PackageServiceProvider
         $router = $this->app->make(Router::class);
 
         $router->aliasMiddleware(StopwatchInjectMiddleware::ALIAS, StopwatchInjectAlias::class);
-    }
-
-    private function registerDebugbar(): void
-    {
-        if (! class_exists(LaravelDebugbar::class) || ! $this->app->bound(LaravelDebugbar::class)) {
-            return;
-        }
-
-        $laravelDebugbar = $this->app->make(LaravelDebugbar::class);
-
-        if ($laravelDebugbar->isEnabled()) {
-            $laravelDebugbar->addCollector(new DebugbarCollector($this->app->make(Stopwatch::class)));
-        }
     }
 
     /** @phpstan-ignore complexity.functionLike */

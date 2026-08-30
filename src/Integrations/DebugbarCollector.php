@@ -13,13 +13,15 @@ use SanderMuller\Stopwatch\StopwatchCheckpoint;
  */
 final class DebugbarCollector extends DataCollector implements Renderable
 {
+    public const string NAME = 'stopwatch';
+
     public function __construct(
         private readonly Stopwatch $stopwatch,
     ) {}
 
     public function getName(): string
     {
-        return 'stopwatch';
+        return self::NAME;
     }
 
     /**

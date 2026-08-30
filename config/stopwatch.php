@@ -253,6 +253,15 @@ return [
     |   Default: `local` only - default-deny because the toolbar exposes raw
     |   SQL + bindings and shared dev/staging environments are common.
     |
+    | auto_register:
+    |   When true (the default), the service provider prepends
+    |   `StopwatchInjectMiddleware` and `StopwatchMiddleware::autoStart()` to
+    |   the global middleware stack when `mode` is not `off`, the environment
+    |   is on the allow-list above, and the app is not on Octane. The env var
+    |   alone is then enough. Autostart also finishes every web request,
+    |   which emits a `Server-Timing` header and feeds the run log and
+    |   notifications. Set it to false to register the middleware by hand.
+    |
     | Required topology: register `StopwatchInjectMiddleware` globally OUTER
     | to `StopwatchMiddleware::autoStart()`. The injector reads aggregates
     | post-$next, so autostart's `finish()` must run first (i.e. inner).
@@ -261,6 +270,7 @@ return [
 
     'inject' => [
         'mode' => env('STOPWATCH_INJECT', 'off'),
+        'auto_register' => (bool) env('STOPWATCH_INJECT_AUTO_REGISTER', true),
         'allowed_environments' => env('STOPWATCH_INJECT_ENVIRONMENTS', 'local'),
         'position' => env('STOPWATCH_INJECT_POSITION', 'bottom-right'),
         'slow_request_threshold_ms' => (int) env('STOPWATCH_INJECT_SLOW_REQUEST_MS', 500),

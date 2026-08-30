@@ -14,6 +14,7 @@ final class InjectMiddlewarePlumbingTest extends TestCase
 
         self::assertIsArray($config);
         self::assertSame('off', $config['mode']);
+        self::assertTrue($config['auto_register']);
         self::assertSame('local', $config['allowed_environments']);
         self::assertSame('bottom-right', $config['position']);
         self::assertSame(500, $config['slow_request_threshold_ms']);

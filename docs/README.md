@@ -2,7 +2,7 @@
 
 Published at **https://sandermuller.github.io/Stopwatch/**. These files are the source; read them here or on the site.
 
-**Getting started:** [Why Stopwatch?](01-why-stopwatch.md) · [Installation](02-installation.md)
+**Getting started:** [Why Stopwatch?](01-why-stopwatch.md) · [Installation](02-installation.md) · [Getting started](03-getting-started.md)
 
 **Measuring:** [Checkpoints](04-checkpoints.md) · [Query, memory and HTTP tracking](05-tracking.md)
 
