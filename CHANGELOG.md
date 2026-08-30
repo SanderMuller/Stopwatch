@@ -8,6 +8,33 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.12.0](https://github.com/SanderMuller/Stopwatch/compare/v0.11.0...v0.12.0) - 2026-08-30
+
+<!-- verified-sha: f1613b50fbd22f7ffa909cd4aace148a2543b1d2 -->
+### Added
+
+- Added `STOPWATCH_INJECT_AUTO_REGISTER` to turn automatic middleware registration off (default `true`).
+
+### Changed
+
+- Registered the toolbar middleware automatically when `STOPWATCH_INJECT` is not `off`. The environment allow-list and the Octane guard still apply.
+- Autostart now runs on every web request under auto-registration, so `Server-Timing`, the run log and notifications activate with it. Opt out:
+  ```dotenv
+  STOPWATCH_INJECT_AUTO_REGISTER=false
+  
+  ```
+
+### Fixed
+
+- Fixed the Debugbar timeline tab never appearing on Debugbar v4 (`fruitcake/laravel-debugbar`).
+
+### Internal
+
+- Added a Getting started page to the documentation site.
+- Bumped the `checkout`, `cache` and `zizmor-action` CI actions.
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.11.0...v0.12.0
+
 ## [v0.11.0](https://github.com/SanderMuller/Stopwatch/compare/v0.10.0...v0.11.0) - 2026-08-29
 
 <!-- verified-sha: 8616bacc2daa697ccd13a6511e00e2a7dd72501f -->
