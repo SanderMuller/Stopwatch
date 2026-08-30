@@ -8,7 +8,7 @@ STOPWATCH_LOG_RUNS=true
 
 Pair it with `StopwatchMiddleware` for HTTP runs, or call `stopwatch()->finish()` yourself in a command or job. Runs faster than `STOPWATCH_LOG_MIN_DURATION_MS` (default `50`) are skipped.
 
-Each file holds the same markdown `stopwatch()->toMarkdown()` produces, plus `## SQL detail` and `## HTTP detail` in `full` mode, [`## Exception`](09-crash-diagnostics.md) when something threw, and `## Context` when the context collector is on. YAML frontmatter keeps listing cheap.
+Each file holds the same markdown `stopwatch()->toMarkdown()` produces, plus `## SQL detail` and `## HTTP detail` in `full` mode, [`## Exception`](10-crash-diagnostics.md) when something threw, and `## Context` when the context collector is on. YAML frontmatter keeps listing cheap.
 
 ## Inspect runs
 

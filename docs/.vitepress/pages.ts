@@ -32,18 +32,23 @@ export const sections: DocSection[] = [
                 text: 'Installation',
                 blurb: 'Require the package, publish the config, and read your first profile.',
             },
+            {
+                file: '03-getting-started',
+                text: 'Getting started',
+                blurb: 'Two checkpoints on a slow request, and the line that owns the time.',
+            },
         ],
     },
     {
         text: 'Measuring',
         pages: [
             {
-                file: '03-checkpoints',
+                file: '04-checkpoints',
                 text: 'Checkpoints',
                 blurb: 'Mark the path, measure a closure, and choose where each checkpoint is emitted.',
             },
             {
-                file: '04-tracking',
+                file: '05-tracking',
                 text: 'Query, memory and HTTP tracking',
                 blurb: 'Attach database, memory and outbound-HTTP metrics to every checkpoint.',
             },
@@ -53,17 +58,17 @@ export const sections: DocSection[] = [
         text: 'Reading the profile',
         pages: [
             {
-                file: '05-html-report',
+                file: '06-html-report',
                 text: 'HTML report',
                 blurb: 'The self-contained card: severity tiers, per-row detail modals, dark mode, print.',
             },
             {
-                file: '06-profiler-toolbar',
+                file: '07-profiler-toolbar',
                 text: 'Profiler toolbar',
                 blurb: 'A Debugbar-style toolbar on eligible HTML responses, off outside allowed environments.',
             },
             {
-                file: '07-server-timing',
+                file: '08-server-timing',
                 text: 'Server-Timing and Debugbar',
                 blurb: 'Read timings in DevTools, or as a Debugbar timeline tab.',
             },
@@ -73,12 +78,12 @@ export const sections: DocSection[] = [
         text: 'Run log',
         pages: [
             {
-                file: '08-run-log',
+                file: '09-run-log',
                 text: 'Persistent run log',
                 blurb: 'Keep finished runs on disk so a slow request can be read after the fact.',
             },
             {
-                file: '09-crash-diagnostics',
+                file: '10-crash-diagnostics',
                 text: 'Crash diagnostics',
                 blurb: 'Capture the exception behind a failed run and pivot to laravel.log.',
             },
@@ -88,17 +93,17 @@ export const sections: DocSection[] = [
         text: 'More',
         pages: [
             {
-                file: '10-notifications',
+                file: '11-notifications',
                 text: 'Slow-run notifications',
                 blurb: 'Dispatch a notification when a run crosses a duration threshold.',
             },
             {
-                file: '11-ai-assistant',
+                file: '12-ai-assistant',
                 text: 'AI assistant integration',
                 blurb: 'Let an agent drive the run log instead of running the commands yourself.',
             },
             {
-                file: '12-standalone',
+                file: '13-standalone',
                 text: 'Standalone PHP',
                 blurb: 'Use the profiler outside Laravel, and what needs the container.',
             },
@@ -108,12 +113,12 @@ export const sections: DocSection[] = [
         text: 'Reference',
         pages: [
             {
-                file: '13-configuration',
+                file: '14-configuration',
                 text: 'Configuration reference',
                 blurb: 'Every env var and config key, grouped by the feature that owns it.',
             },
             {
-                file: '14-api',
+                file: '15-api',
                 text: 'API reference',
                 blurb: 'Lifecycle, serialization, and the runtime enable/disable switch.',
             },

@@ -22,8 +22,8 @@ Use it when a request, command, or job feels slow and you would rather not stand
 
 ## What it is not
 
-An APM. There is no aggregation across requests, no service map, no alerting on trends. Stopwatch profiles the run in front of you, and the [run log](08-run-log.md) keeps the last few so you can read them after the fact.
+An APM. There is no aggregation across requests, no service map, no alerting on trends. Stopwatch profiles the run in front of you, and the [run log](09-run-log.md) keeps the last few so you can read them after the fact.
 
 ## Compatibility
 
-PHP 8.3+ · Laravel 12.x / 13.x. The profiler core runs [without Laravel](12-standalone.md); query tracking, the toolbar, and the run log do not.
+PHP 8.3+ · Laravel 12.x / 13.x. The profiler core runs [without Laravel](13-standalone.md); query tracking, the toolbar, and the run log do not.

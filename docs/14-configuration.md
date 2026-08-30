@@ -15,9 +15,9 @@ Publish the annotated config with `php artisan vendor:publish --tag=stopwatch-co
 
 | Feature | Env vars |
 |---|---|
-| [Tracking](04-tracking.md) | `STOPWATCH_TRACK_QUERIES`, `STOPWATCH_TRACK_MEMORY`, `STOPWATCH_TRACK_HTTP` |
-| [Notifications](10-notifications.md) | `STOPWATCH_NOTIFY_THRESHOLD`, `STOPWATCH_MAIL_TO`, `STOPWATCH_MAIL_SUBJECT` |
-| [Toolbar](06-profiler-toolbar.md) | `STOPWATCH_INJECT`, `STOPWATCH_INJECT_ENVIRONMENTS`, `STOPWATCH_INJECT_POSITION`, `STOPWATCH_INJECT_SLOW_REQUEST_MS` |
+| [Tracking](05-tracking.md) | `STOPWATCH_TRACK_QUERIES`, `STOPWATCH_TRACK_MEMORY`, `STOPWATCH_TRACK_HTTP` |
+| [Notifications](11-notifications.md) | `STOPWATCH_NOTIFY_THRESHOLD`, `STOPWATCH_MAIL_TO`, `STOPWATCH_MAIL_SUBJECT` |
+| [Toolbar](07-profiler-toolbar.md) | `STOPWATCH_INJECT`, `STOPWATCH_INJECT_ENVIRONMENTS`, `STOPWATCH_INJECT_POSITION`, `STOPWATCH_INJECT_SLOW_REQUEST_MS` |
 
 ## Run log
 

@@ -40,4 +40,4 @@ stopwatch()->dump(); // dump the instance
 stopwatch()->dd();   // dump and die
 ```
 
-`dd()` finishes the run before inspecting its arguments, so `dd($exception)` does not capture the exception — see the [run-log limitations](08-run-log.md#limitations).
+`dd()` finishes the run before inspecting its arguments, so `dd($exception)` does not capture the exception — see the [run-log limitations](09-run-log.md#limitations).

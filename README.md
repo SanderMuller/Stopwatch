@@ -56,7 +56,7 @@ Render it as a self-contained HTML card instead:
 Full documentation is published at https://sandermuller.github.io/Stopwatch/.
 
 - [Why Stopwatch?](https://sandermuller.github.io/Stopwatch/why-stopwatch) — what it answers, and when an APM is the better tool
-- [Installation](https://sandermuller.github.io/Stopwatch/installation) · [Checkpoints](https://sandermuller.github.io/Stopwatch/checkpoints) · [Query, memory and HTTP tracking](https://sandermuller.github.io/Stopwatch/tracking)
+- [Installation](https://sandermuller.github.io/Stopwatch/installation) · [Getting started](https://sandermuller.github.io/Stopwatch/getting-started) · [Checkpoints](https://sandermuller.github.io/Stopwatch/checkpoints) · [Query, memory and HTTP tracking](https://sandermuller.github.io/Stopwatch/tracking)
 - [HTML report](https://sandermuller.github.io/Stopwatch/html-report) · [Profiler toolbar](https://sandermuller.github.io/Stopwatch/profiler-toolbar) · [Server-Timing and Debugbar](https://sandermuller.github.io/Stopwatch/server-timing)
 - [Persistent run log](https://sandermuller.github.io/Stopwatch/run-log) · [Crash diagnostics](https://sandermuller.github.io/Stopwatch/crash-diagnostics)
 - [Slow-run notifications](https://sandermuller.github.io/Stopwatch/notifications) · [AI assistant integration](https://sandermuller.github.io/Stopwatch/ai-assistant) · [Standalone PHP](https://sandermuller.github.io/Stopwatch/standalone)
