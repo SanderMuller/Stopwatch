@@ -8,6 +8,20 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.13.0](https://github.com/SanderMuller/Stopwatch/compare/v0.12.0...v0.13.0) - 2026-08-30
+
+<!-- verified-sha: d36a3eb7c4fa9188ccb6259480caf58d2c452e76 -->
+### Added
+
+- Added `STOPWATCH_INJECT_TRACK` to keep the toolbar from turning the trackers on (default `true`).
+
+### Changed
+
+- The toolbar now tracks queries, memory and outbound HTTP itself, so its counts and memory delta are no longer dashes.
+- Toolbar tracking is best effort: a missing `illuminate/database` or `illuminate/http` leaves that column empty instead of throwing. An explicit `STOPWATCH_TRACK_*` still throws.
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.12.0...v0.13.0
+
 ## [v0.12.0](https://github.com/SanderMuller/Stopwatch/compare/v0.11.0...v0.12.0) - 2026-08-30
 
 <!-- verified-sha: f1613b50fbd22f7ffa909cd4aace148a2543b1d2 -->
@@ -21,6 +35,7 @@ the release workflow promotes it into this file as part of the tag flow.
 - Autostart now runs on every web request under auto-registration, so `Server-Timing`, the run log and notifications activate with it. Opt out:
   ```dotenv
   STOPWATCH_INJECT_AUTO_REGISTER=false
+  
   
   ```
 
