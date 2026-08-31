@@ -38,7 +38,10 @@ final class ToolbarTrackingTest extends TestCase
         $content = (string) $this->get('/toolbar-queries')->getContent();
 
         self::assertStringContainsString('<!--stopwatch-toolbar-->', $content);
-        self::assertMatchesRegularExpression('/&#128451;\s*1q/', $content);
+        self::assertMatchesRegularExpression('/<\/svg>\s*1q/', $content);
+
+        // The pills use the same inline SVG set as the HTML report, never emoji.
+        self::assertDoesNotMatchRegularExpression('/&#1[23][0-9]{4};/', $content);
     }
 
     public function test_an_active_toolbar_turns_the_trackers_on(): void

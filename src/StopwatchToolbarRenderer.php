@@ -67,12 +67,12 @@ final readonly class StopwatchToolbarRenderer
     private function summaryPills(array $totals, bool $isSlow): string
     {
         $durationClass = $isSlow ? 'sw-pill sw-pill-slow' : 'sw-pill';
-        $html = '<span class="' . $durationClass . '">&#9201; ' . e(Stopwatch::formatDuration($totals['duration_ms'])) . '</span>';
+        $html = '<span class="' . $durationClass . '">' . StopwatchIcons::clock() . ' ' . e(Stopwatch::formatDuration($totals['duration_ms'])) . '</span>';
 
         $html .= $this->memoryPill($totals['memory_delta_bytes']);
-        $html .= $this->countPill('&#128451;', $totals['queries_total'], $totals['query_ms_total'], 'q');
+        $html .= $this->countPill(StopwatchIcons::db(), $totals['queries_total'], $totals['query_ms_total'], 'q');
 
-        return $html . $this->countPill('&#127760;', $totals['http_total'], $totals['http_ms_total'], 'h');
+        return $html . $this->countPill(StopwatchIcons::globe(), $totals['http_total'], $totals['http_ms_total'], 'h');
     }
 
     private function memoryPill(?int $bytes): string
@@ -81,7 +81,7 @@ final readonly class StopwatchToolbarRenderer
             return '';
         }
 
-        return '<span class="sw-pill">&#129504; ' . e(StopwatchCheckpoint::formatMemoryDelta($bytes)) . '</span>';
+        return '<span class="sw-pill">' . StopwatchIcons::memory() . ' ' . e(StopwatchCheckpoint::formatMemoryDelta($bytes)) . '</span>';
     }
 
     private function countPill(string $glyph, ?int $count, ?float $ms, string $unit): string
