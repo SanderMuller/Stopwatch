@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.14.0](https://github.com/SanderMuller/Stopwatch/compare/v0.13.1...v0.14.0) - 2026-09-02
+
+<!-- verified-sha: 7763cdc493492a9f69d67cec4693e0abe4a48560 -->
+### Added
+
+- Each toolbar pill now shows a tooltip that names the metric it reports: total request time against the slow threshold, memory change from start to finish, query count with total query time, and outgoing HTTP request count with total time.
+- Toolbar tooltips open on hover and on keyboard focus, and stay inside the viewport in all four toolbar positions.
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.13.1...v0.14.0
+
 ## [v0.13.1](https://github.com/SanderMuller/Stopwatch/compare/v0.13.0...v0.13.1) - 2026-08-31
 
 <!-- verified-sha: e19d85da769dff5bcde8bbbb908d7ddb14e3d38e -->
@@ -44,6 +54,7 @@ the release workflow promotes it into this file as part of the tag flow.
 - Autostart now runs on every web request under auto-registration, so `Server-Timing`, the run log and notifications activate with it. Opt out:
   ```dotenv
   STOPWATCH_INJECT_AUTO_REGISTER=false
+  
   
   
   
