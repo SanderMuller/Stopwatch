@@ -3,6 +3,7 @@
 namespace SanderMuller\Stopwatch\Tests\Inject;
 
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use SanderMuller\Stopwatch\Stopwatch;
 use SanderMuller\Stopwatch\StopwatchInjector;
 use SanderMuller\Stopwatch\StopwatchToolbarRenderer;
@@ -120,6 +121,57 @@ final class InjectorTest extends TestCase
         self::assertStringContainsString('First', $html);
         self::assertStringContainsString('Second', $html);
         self::assertStringContainsString('<table class="sw-table">', $html);
+    }
+
+    public function test_renderer_adds_tooltips_to_every_summary_pill(): void
+    {
+        config(['stopwatch.inject.slow_request_threshold_ms' => 500]);
+
+        $stopwatch = $this->app->make(Stopwatch::class);
+        $stopwatch->withMemoryTracking()->withQueryTracking()->withHttpTracking()->start();
+        DB::select('SELECT 1');
+        $stopwatch->checkpoint('Only');
+        $stopwatch->finish();
+
+        $renderer = new StopwatchToolbarRenderer($stopwatch);
+        $html = $renderer->render();
+
+        self::assertStringContainsString('data-sw-tip="Total request time: ', $html);
+        self::assertStringContainsString('Slow threshold: 500ms.', $html);
+        self::assertStringContainsString('data-sw-tip="Memory change from start to finish: ', $html);
+        self::assertStringContainsString('data-sw-tip="1 database queries, ', $html);
+        self::assertStringContainsString('data-sw-tip="0 outgoing HTTP requests, ', $html);
+        self::assertSame(4, substr_count($html, 'data-sw-tip="'));
+        self::assertSame(4, substr_count($html, 'tabindex="0" data-sw-tip="'));
+    }
+
+    public function test_renderer_ships_the_css_the_tooltips_depend_on(): void
+    {
+        $stopwatch = $this->app->make(Stopwatch::class);
+        $stopwatch->start();
+        $stopwatch->finish();
+
+        $html = (new StopwatchToolbarRenderer($stopwatch))->render();
+
+        self::assertStringContainsString('.sw-pill[data-sw-tip]::after{content:attr(data-sw-tip);', $html);
+        self::assertStringContainsString('.sw-pill[data-sw-tip]:hover::after', $html);
+        self::assertStringContainsString('.sw-pill[data-sw-tip]:focus-visible::after', $html);
+        self::assertStringNotContainsString('overflow:hidden', $html);
+    }
+
+    public function test_renderer_tooltip_reports_exceeded_slow_threshold(): void
+    {
+        config(['stopwatch.inject.slow_request_threshold_ms' => 0]);
+
+        $stopwatch = $this->app->make(Stopwatch::class);
+        $stopwatch->start();
+        $stopwatch->checkpoint('Only');
+        $stopwatch->finish();
+
+        $renderer = new StopwatchToolbarRenderer($stopwatch);
+        $html = $renderer->render();
+
+        self::assertStringContainsString('Above the slow threshold of 0ms.', $html);
     }
 
     public function test_renderer_marks_pill_slow_when_over_threshold(): void

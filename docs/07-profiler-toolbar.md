@@ -2,6 +2,8 @@
 
 A Debugbar-style toolbar injected into eligible HTML responses: per-request duration, memory delta, query and HTTP counts, and a JavaScript-free panel of per-checkpoint deltas.
 
+Each pill carries a tooltip that names the metric it shows. Point at a pill, or tab to it, to read the full text.
+
 ## Setup
 
 Set one env var:
