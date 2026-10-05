@@ -4,6 +4,7 @@ namespace SanderMuller\Stopwatch\Console;
 
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use SanderMuller\Stopwatch\RunLog\DebugNotice;
 use SanderMuller\Stopwatch\RunLog\RunLogStore;
 use SanderMuller\Stopwatch\Stopwatch;
 
@@ -41,24 +42,25 @@ final class RunsListCommand extends Command
     }
 
     /**
-     * @param list<array{id: string, frontmatter: array<string, scalar|null>}> $rows
+     * @param list<array{id: string, frontmatter: array<string, scalar|null>, state: string}> $rows
      */
     private function renderTable(array $rows): int
     {
         if ($rows === []) {
-            $this->components->warn('No runs recorded yet. Set STOPWATCH_LOG_RUNS=true and exercise the app to start logging.');
+            $this->components->warn(DebugNotice::emptyMessage('No runs recorded yet. Set STOPWATCH_LOG_RUNS=true (or STOPWATCH_DEBUG=true) and exercise the app to start logging.'));
 
             return self::SUCCESS;
         }
 
         $this->newLine();
         $this->table(
-            ['ID', 'Duration', 'URL / Command', 'Status', 'Recorded'],
+            ['ID', 'Duration', 'URL / Command', 'Status', 'State', 'Recorded'],
             array_map(fn (array $row): array => [
                 $row['id'],
                 $this->formatDuration($row['frontmatter']['duration_ms'] ?? null),
-                $this->formatTarget($row['frontmatter']),
+                RunTarget::describe($row['frontmatter']),
                 $this->formatStatus($row['frontmatter']),
+                $row['state'],
                 $this->formatRecordedAt($row['frontmatter']),
             ], $rows),
         );
@@ -66,11 +68,17 @@ final class RunsListCommand extends Command
         $this->newLine();
         $this->line('  <fg=gray>Run</> <fg=white>php artisan stopwatch:runs:show [id]</> <fg=gray>to inspect a run.</>');
 
+        $notice = DebugNotice::blocked();
+
+        if ($notice !== null) {
+            $this->components->warn($notice);
+        }
+
         return self::SUCCESS;
     }
 
     /**
-     * @param list<array{id: string, frontmatter: array<string, scalar|null>}> $rows
+     * @param list<array{id: string, frontmatter: array<string, scalar|null>, state: string}> $rows
      */
     private function renderJson(array $rows): void
     {
@@ -81,8 +89,8 @@ final class RunsListCommand extends Command
     }
 
     /**
-     * @param list<array{id: string, frontmatter: array<string, scalar|null>}> $rows
-     * @return list<array{id: string, frontmatter: array<string, scalar|null>}>
+     * @param list<array{id: string, frontmatter: array<string, scalar|null>, state: string}> $rows
+     * @return list<array{id: string, frontmatter: array<string, scalar|null>, state: string}>
      */
     private function applyFilters(array $rows): array
     {
@@ -94,7 +102,7 @@ final class RunsListCommand extends Command
             slow: $this->option('slow') === true,
             threw: $this->option('threw') === true,
             exceptionClass: is_string($exceptionClass) ? $exceptionClass : null,
-            ctxFilters: is_array($rawCtx) ? RunListFilters::parseCtxOption($rawCtx) : [],
+            ctxFilters: is_array($rawCtx) ? CtxOption::parse($rawCtx) : [],
         );
     }
 
@@ -105,49 +113,6 @@ final class RunsListCommand extends Command
         }
 
         return Stopwatch::formatDuration((float) $value);
-    }
-
-    /**
-     * @param array<string, scalar|null> $frontmatter
-     */
-    private function formatTarget(array $frontmatter): string
-    {
-        $base = $this->formatRequestOrCommand($frontmatter);
-        $exceptionClass = $frontmatter['exception_class'] ?? null;
-
-        if (is_string($exceptionClass) && $exceptionClass !== '') {
-            // Surface the exception class for crashed runs — spec §2.1 promised the
-            // class is reachable from list view without re-parsing the body.
-            return $base . ' · ' . $this->shortenExceptionClass($exceptionClass);
-        }
-
-        return $base;
-    }
-
-    /**
-     * @param array<string, scalar|null> $frontmatter
-     */
-    private function formatRequestOrCommand(array $frontmatter): string
-    {
-        if (is_string($frontmatter['command'] ?? null) && $frontmatter['command'] !== '') {
-            return 'artisan ' . $frontmatter['command'];
-        }
-
-        $method = is_string($frontmatter['method'] ?? null) ? $frontmatter['method'] . ' ' : '';
-        $url = is_string($frontmatter['url'] ?? null) ? $frontmatter['url'] : '-';
-
-        return $method . $url;
-    }
-
-    /**
-     * Trim `Foo\Bar\BazException` to `BazException` so the table column doesn't
-     * blow out on FQCNs. Full class is still available via `stopwatch:runs:show`.
-     */
-    private function shortenExceptionClass(string $class): string
-    {
-        $lastSeparator = strrpos($class, '\\');
-
-        return $lastSeparator === false ? $class : substr($class, $lastSeparator + 1);
     }
 
     /**

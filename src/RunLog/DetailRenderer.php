@@ -64,7 +64,7 @@ final readonly class DetailRenderer
             return "| {$idx} | {$labelCell} | {$duration} | {$sqlCell} |";
         }
 
-        $bindings = $this->escapeCell((string) json_encode($call['bindings'], JSON_UNESCAPED_SLASHES));
+        $bindings = $this->escapeCell((string) json_encode($call['bindings'], StopwatchCheckpoint::SAFE_JSON_FLAGS));
 
         return "| {$idx} | {$labelCell} | {$duration} | {$sqlCell} | {$bindings} |";
     }

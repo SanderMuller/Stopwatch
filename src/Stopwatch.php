@@ -17,8 +17,12 @@ use Illuminate\Http\Client\Events\ResponseReceived;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\Response as HttpResponse;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 use Illuminate\Support\Traits\Conditionable;
 use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
+use SanderMuller\Stopwatch\RunLog\CheckpointListener;
+use SanderMuller\Stopwatch\RunLog\PathRelativiser;
+use SanderMuller\Stopwatch\RunLog\RunEndReason;
 use Stringable;
 
 /**
@@ -117,6 +121,14 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     /** @var list<RunLog\RunRecorder> */
     private array $runRecorders = [];
 
+    /** @var list<CheckpointListener> */
+    private array $checkpointListeners = [];
+
+    /** Created lazily by {@see runId()}, so standalone use never needs symfony/uid. */
+    private ?string $runId = null;
+
+    private bool $showLocations = false;
+
     /** @var array<string, scalar|null> */
     private array $runContext = [];
 
@@ -183,6 +195,12 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             return $this;
         }
 
+        if ($this->startHrtime !== null && $this->endHrtime === null) {
+            $this->notifyRunEnd(RunEndReason::Restarted);
+        }
+
+        $this->runId = null;
+
         $this->checkpoints = StopwatchCheckpointCollection::empty();
 
         $this->startTime = $this->clock->now();
@@ -241,30 +259,80 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
      */
     public function checkpoint(string $label, ?array $metadata = null, ?StopwatchOutput $output = null, ?string $logLevel = null): self
     {
+        return $this->recordCheckpoint($label, $metadata, $output, $logLevel, probe: false);
+    }
+
+    /**
+     * A temporary debug checkpoint. Records like {@see checkpoint()}, flagged as a
+     * probe so it can be found and removed (`stopwatch()->probe(`, or the opt-in
+     * PHPStan rule) before committing.
+     *
+     * @param array<array-key, mixed>|null $metadata
+     */
+    public function probe(string $label, ?array $metadata = null): self
+    {
+        return $this->recordCheckpoint($label, $metadata, null, null, probe: true);
+    }
+
+    /**
+     * The ULID of the active or last run, or null before the first start.
+     */
+    public function runId(): ?string
+    {
+        if ($this->startHrtime === null) {
+            return null;
+        }
+
+        return $this->runId ??= (string) Str::ulid();
+    }
+
+    /**
+     * @internal Wiring for the debug stream. Listeners survive {@see reset()}.
+     */
+    public function addCheckpointListener(CheckpointListener $listener): self
+    {
+        $this->checkpointListeners[] = $listener;
+
+        return $this;
+    }
+
+    /**
+     * @internal Debug mode turns this on.
+     */
+    public function showLocations(): self
+    {
+        $this->showLocations = true;
+
+        return $this;
+    }
+
+    public function __destruct()
+    {
+        if ($this->enabled && $this->startHrtime !== null && $this->endHrtime === null) {
+            $this->notifyRunEnd(RunEndReason::Shutdown);
+        }
+    }
+
+    /**
+     * @param array<array-key, mixed>|null $metadata
+     */
+    private function recordCheckpoint(string $label, ?array $metadata, ?StopwatchOutput $output, ?string $logLevel, bool $probe): self
+    {
         if (! $this->enabled || $this->ended()) {
             return $this;
         }
 
-        if (! $this->started()) {
-            $this->start();
-        }
-
-        if ($this->startHrtime === null) {
-            throw new Exception('Stopwatch has not been started properly.');
-        }
-
+        $startHrtime = $this->ensureStarted();
         $nowHrtime = $this->clock->hrtime();
         $now = $this->clock->now();
 
-        $timeSinceLastCheckpointMs = ($nowHrtime - ($this->lastCheckpointHrtime ?? $this->startHrtime)) / 1_000_000;
-        $timeSinceStopwatchStartMs = ($nowHrtime - $this->startHrtime) / 1_000_000;
+        $timeSinceLastCheckpointMs = ($nowHrtime - ($this->lastCheckpointHrtime ?? $startHrtime)) / 1_000_000;
+        $timeSinceStopwatchStartMs = ($nowHrtime - $startHrtime) / 1_000_000;
 
         $this->timeSinceLastCheckpointMs = $timeSinceLastCheckpointMs;
         $this->lastCheckpointHrtime = $nowHrtime;
 
-        $queryMetrics = $this->trackingQueries ? $this->collectQueryMetrics() : null;
-        $memoryMetrics = $this->trackingMemory ? $this->collectMemoryMetrics() : null;
-        $httpMetrics = $this->trackingHttp ? $this->collectHttpMetrics() : null;
+        [$queryMetrics, $memoryMetrics, $httpMetrics] = $this->trackedMetrics();
 
         $this->checkpoints->addCheckpoint(
             label: $label,
@@ -281,7 +349,11 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             httpTimeMs: $httpMetrics['time_ms'] ?? null,
             httpCalls: $httpMetrics['calls'] ?? null,
             queryCalls: $queryMetrics['calls'] ?? null,
+            probe: $probe,
+            location: $this->callerLocation(),
         );
+
+        $this->notifyCheckpoint();
 
         if (($output ?? $this->output) !== StopwatchOutput::Silent) {
             $this->emitCheckpoint(
@@ -292,6 +364,78 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         }
 
         return $this;
+    }
+
+    /**
+     * Auto-start on the first checkpoint; returns the run's start hrtime.
+     */
+    private function ensureStarted(): int
+    {
+        if (! $this->started()) {
+            $this->start();
+        }
+
+        if ($this->startHrtime === null) {
+            throw new Exception('Stopwatch has not been started properly.');
+        }
+
+        return $this->startHrtime;
+    }
+
+    /**
+     * @return array{0: array{queries: int, query_time_ms: float, calls: list<array{sql: string, bindings: array<array-key, mixed>, durationMs: float}>}|null, 1: array{memory_usage: int, memory_delta: int, memory_peak: int}|null, 2: array{count: int, time_ms: float, calls: list<array{method: string, url: string, status: int, durationMs: float}>}|null}
+     */
+    private function trackedMetrics(): array
+    {
+        return [
+            $this->trackingQueries ? $this->collectQueryMetrics() : null,
+            $this->trackingMemory ? $this->collectMemoryMetrics() : null,
+            $this->trackingHttp ? $this->collectHttpMetrics() : null,
+        ];
+    }
+
+    /**
+     * The first stack frame outside this package's `src/`, as `path:line`.
+     */
+    private function callerLocation(): ?string
+    {
+        foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 8) as $frame) {
+            $file = $frame['file'] ?? null;
+
+            if ($file !== null && ! str_starts_with($file, __DIR__ . DIRECTORY_SEPARATOR)) {
+                return PathRelativiser::relativise($file) . ':' . ($frame['line'] ?? 0);
+            }
+        }
+
+        return null;
+    }
+
+    private function notifyCheckpoint(): void
+    {
+        $checkpoint = $this->checkpoints->lastCheckpoint();
+
+        if (! $checkpoint instanceof StopwatchCheckpoint) {
+            return;
+        }
+
+        foreach ($this->checkpointListeners as $checkpointListener) {
+            try {
+                $checkpointListener->onCheckpoint($this, $checkpoint);
+            } catch (\Throwable $e) {
+                $this->logDispatchFailure('Stopwatch checkpoint listener failed', $e);
+            }
+        }
+    }
+
+    private function notifyRunEnd(RunEndReason $reason): void
+    {
+        foreach ($this->checkpointListeners as $checkpointListener) {
+            try {
+                $checkpointListener->onRunEnd($this, $reason);
+            } catch (\Throwable $e) {
+                $this->logDispatchFailure('Stopwatch checkpoint listener failed', $e);
+            }
+        }
     }
 
     public function timeSinceLastCheckpoint(): CarbonInterval
@@ -373,24 +517,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         if (! $this->queryListenerRegistered) {
             $this->queryListenerRegistered = true;
 
-            app(DatabaseManager::class)->connection()->listen(function (QueryExecuted $query): void {
-                if (! $this->enabled || ! $this->trackingQueries || $this->ended()) {
-                    return;
-                }
-
-                $this->queryCount++;
-                $this->queryDurationMs += $query->time;
-                $this->totalQueryCount++;
-                $this->totalQueryDurationMs += $query->time;
-
-                if (count($this->queryCalls) < self::QUERY_CALL_DETAIL_CAP) {
-                    $this->queryCalls[] = [
-                        'sql' => $query->sql,
-                        'bindings' => $query->bindings,
-                        'durationMs' => $query->time,
-                    ];
-                }
-            });
+            app(DatabaseManager::class)->connection()->listen($this->recordQuery(...));
         }
 
         return $this;
@@ -443,46 +570,71 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     {
         $dispatcher = app(Dispatcher::class);
 
-        $dispatcher->listen(RequestSending::class, function (RequestSending $event): void {
-            if (! $this->shouldRecordHttp()) {
-                return;
-            }
+        $dispatcher->listen(RequestSending::class, $this->onHttpRequestSending(...));
+        $dispatcher->listen(ResponseReceived::class, $this->onHttpResponseReceived(...));
+        $dispatcher->listen(ConnectionFailed::class, $this->onHttpConnectionFailed(...));
+    }
 
+    private function recordQuery(QueryExecuted $query): void
+    {
+        if (! $this->enabled || ! $this->trackingQueries || $this->ended()) {
+            return;
+        }
+
+        $this->queryCount++;
+        $this->queryDurationMs += $query->time;
+        $this->totalQueryCount++;
+        $this->totalQueryDurationMs += $query->time;
+
+        if (count($this->queryCalls) < self::QUERY_CALL_DETAIL_CAP) {
+            $this->queryCalls[] = [
+                'sql' => $query->sql,
+                'bindings' => $query->connection->prepareBindings($query->bindings),
+                'durationMs' => $query->time,
+            ];
+        }
+    }
+
+    private function onHttpRequestSending(RequestSending $event): void
+    {
+        if ($this->shouldRecordHttp()) {
             $this->httpRequestStarts[spl_object_id($event->request)] = $this->clock->hrtime();
-        });
+        }
+    }
 
-        $dispatcher->listen(ResponseReceived::class, function (ResponseReceived $event): void {
-            if (! $this->shouldRecordHttp()) {
-                return;
-            }
+    private function onHttpResponseReceived(ResponseReceived $event): void
+    {
+        if (! $this->shouldRecordHttp()) {
+            return;
+        }
 
-            // Prefer Guzzle's transferStats (Telescope's pattern); fall back to wall-clock from RequestSending
-            // when transferStats is missing (e.g. Http::fake()) or zero (under tests with FakeClock).
-            $transferMs = $this->resolveTransferTimeMs($event->response);
-            $durationMs = $transferMs > 0
-                ? $transferMs
-                : $this->consumeRequestStartElapsedMs($event->request);
+        // Prefer Guzzle's transferStats (Telescope's pattern); fall back to wall-clock from RequestSending
+        // when transferStats is missing (e.g. Http::fake()) or zero (under tests with FakeClock).
+        $transferMs = $this->resolveTransferTimeMs($event->response);
+        $durationMs = $transferMs > 0
+            ? $transferMs
+            : $this->consumeRequestStartElapsedMs($event->request);
 
-            $this->recordHttpCall(
-                method: $event->request->method(),
-                url: $this->stripUrlQueryString($event->request->url()),
-                status: $event->response->status(),
-                durationMs: $durationMs,
-            );
-        });
+        $this->recordHttpCall(
+            method: $event->request->method(),
+            url: $this->stripUrlQueryString($event->request->url()),
+            status: $event->response->status(),
+            durationMs: $durationMs,
+        );
+    }
 
-        $dispatcher->listen(ConnectionFailed::class, function (ConnectionFailed $event): void {
-            if (! $this->shouldRecordHttp()) {
-                return;
-            }
+    private function onHttpConnectionFailed(ConnectionFailed $event): void
+    {
+        if (! $this->shouldRecordHttp()) {
+            return;
+        }
 
-            $this->recordHttpCall(
-                method: $event->request->method(),
-                url: $this->stripUrlQueryString($event->request->url()),
-                status: 0,
-                durationMs: $this->consumeRequestStartElapsedMs($event->request),
-            );
-        });
+        $this->recordHttpCall(
+            method: $event->request->method(),
+            url: $this->stripUrlQueryString($event->request->url()),
+            status: 0,
+            durationMs: $this->consumeRequestStartElapsedMs($event->request),
+        );
     }
 
     private function shouldRecordHttp(): bool
@@ -609,7 +761,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         match ($output ?? $this->output) {
             StopwatchOutput::Log => logger()->log($logLevel ?? $this->logLevel ?? 'debug', $this->lastCheckpointFormatted(), $metadata ?? []),
             StopwatchOutput::Stderr => fprintf(STDERR, "  %s\n", $this->lastCheckpointFormatted()),
-            StopwatchOutput::Dump => dump($this->lastCheckpointFormatted()),
+            StopwatchOutput::Dump => $metadata === null || $metadata === [] ? dump($this->lastCheckpointFormatted()) : dump($this->lastCheckpointFormatted(), $metadata),
             StopwatchOutput::Silent => null,
         };
     }
@@ -671,6 +823,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->endHrtime = $this->clock->hrtime();
 
         $this->finaliseTotals();
+        $this->notifyRunEnd(RunEndReason::Finished);
 
         // Recorders run BEFORE notifications. A throwing notification channel must
         // never prevent persistence of the run-log file; both phases swallow errors.
@@ -728,15 +881,23 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         // Channels may call toLog()/toHtml() which call finish() — this is safe
         // because endHrtime is already set, so finish() will no-op.
         foreach ($this->notificationChannels as $notificationChannel) {
-            try {
-                if (is_string($notificationChannel)) {
-                    $notificationChannel = app($notificationChannel);
-                }
+            $this->notifyChannel($notificationChannel);
+        }
+    }
 
-                $notificationChannel->notify($this);
-            } catch (\Throwable $e) {
-                $this->logDispatchFailure('Stopwatch notification channel failed', $e);
+    /**
+     * @param StopwatchNotificationChannel|class-string<StopwatchNotificationChannel> $notificationChannel
+     */
+    private function notifyChannel(StopwatchNotificationChannel|string $notificationChannel): void
+    {
+        try {
+            if (is_string($notificationChannel)) {
+                $notificationChannel = app($notificationChannel);
             }
+
+            $notificationChannel->notify($this);
+        } catch (\Throwable $throwable) {
+            $this->logDispatchFailure('Stopwatch notification channel failed', $throwable);
         }
     }
 
@@ -966,7 +1127,8 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     /**
      * Append a persistent context provider — its return value is merged into the
-     * resolved run context at {@see finish()} time. Providers survive {@see reset()}
+     * resolved run context at {@see finish()} time (and, in debug mode, at the first
+     * checkpoint for the stream's start record). Providers survive {@see reset()}
      * (they are wiring, not state) and are evaluated lazily, so they are not affected
      * by `start()`-then-`reset()` races.
      *
@@ -1059,6 +1221,7 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             slowThresholdMs: $this->slowCheckpointThresholdMs,
             tail: '+' . $this->timeSinceLastCheckpointReadable() . ' after last checkpoint',
             markdown: $this->toMarkdown(),
+            showLocations: $this->showLocations,
         );
     }
 
@@ -1132,6 +1295,10 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             $headers[] = 'Memory Δ';
         }
 
+        if ($this->showLocations) {
+            $headers[] = 'Location';
+        }
+
         $headers[] = 'Metadata';
 
         $lines = [
@@ -1178,8 +1345,12 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             $row[] = $this->markdownMemoryCell($cp);
         }
 
+        if ($this->showLocations) {
+            $row[] = $this->escapeMarkdownCell($cp->location ?? '');
+        }
+
         $row[] = $cp->metadata !== null
-            ? $this->escapeMarkdownCell((string) json_encode($cp->metadata, JSON_UNESCAPED_SLASHES))
+            ? $this->escapeMarkdownCell((string) json_encode($cp->metadata, StopwatchCheckpoint::SAFE_JSON_FLAGS))
             : '';
 
         return $row;

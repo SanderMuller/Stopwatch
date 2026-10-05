@@ -181,18 +181,23 @@ final class StopwatchInjectMiddleware
         $middleware = $route->gatherMiddleware();
 
         foreach ($middleware as $entry) {
-            if (! is_string($entry)) {
-                continue;
-            }
-
-            $name = explode(':', $entry, 2)[0];
-
-            if ($name === self::ALIAS || $name === StopwatchInjectAlias::class) {
+            if ($this->isAliasEntry($entry)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function isAliasEntry(mixed $entry): bool
+    {
+        if (! is_string($entry)) {
+            return false;
+        }
+
+        $name = explode(':', $entry, 2)[0];
+
+        return $name === self::ALIAS || $name === StopwatchInjectAlias::class;
     }
 
     private function routeHasAttribute(Request $request): bool

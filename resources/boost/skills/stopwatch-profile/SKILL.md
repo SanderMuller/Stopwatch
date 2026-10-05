@@ -12,6 +12,7 @@ Use `sandermuller/stopwatch` to find where time is spent in a request, command, 
 Activate when the user reports a real performance question — a slow endpoint, a long-running command, an N+1 suspicion, a memory spike — or asks "where is the time going?" / "why is this slow?".
 
 Do NOT activate for:
+- Debugging wrong values or the wrong branch, not slowness — use the `stopwatch-debug` skill (`STOPWATCH_DEBUG=true` + `stopwatch()->probe()`)
 - Micro-benchmarks of a pure function (use a real benchmark tool like PHPBench)
 - Production load tests (use k6, Locust, etc.)
 - Profiling already-instrumented code that has its own metrics

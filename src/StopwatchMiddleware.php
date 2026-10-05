@@ -24,9 +24,7 @@ final readonly class StopwatchMiddleware
     {
         $autoStart = in_array(self::AUTOSTART, $options, true);
 
-        if ($autoStart && $this->stopwatch->enabled() && ! $this->stopwatch->started()) {
-            $this->stopwatch->start();
-        }
+        $this->beginRun($request, $autoStart);
 
         try {
             /** @var Response $response */
@@ -43,6 +41,29 @@ final readonly class StopwatchMiddleware
         }
 
         return $response;
+    }
+
+    /**
+     * Start a run when autoStart is on and none is active (a run that already
+     * ended, as with a second request in one test, starts fresh), and stamp the
+     * URL and method at once so the debug stream's start record has them.
+     */
+    private function beginRun(Request $request, bool $autoStart): void
+    {
+        if (! $this->stopwatch->enabled()) {
+            return;
+        }
+
+        if ($autoStart && (! $this->stopwatch->started() || $this->stopwatch->ended())) {
+            $this->stopwatch->start();
+        }
+
+        if ($this->stopwatch->started() && ! $this->stopwatch->ended()) {
+            $this->stopwatch->withRunContext([
+                'url' => $this->stripQuery($request->fullUrl()),
+                'method' => $request->method(),
+            ]);
+        }
     }
 
     /**

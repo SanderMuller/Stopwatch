@@ -142,7 +142,8 @@ return [
     | When enabled, every finished stopwatch run is persisted as a markdown
     | file under `storage/stopwatch/runs/<ULID>.md` so an AI skill — or a
     | human — can later inspect slow requests via the artisan commands
-    | (`stopwatch:runs:list`, `stopwatch:runs:show`, `stopwatch:runs:clear`).
+    | (`stopwatch:runs:list`, `stopwatch:runs:show`, `stopwatch:runs:diff`,
+    | `stopwatch:runs:clear`).
     |
     | `min_duration_ms` — only log runs at or above this duration (default 50ms,
     | matching `slow_threshold`). Set to 0 to log everything.
@@ -171,13 +172,28 @@ return [
 
         /*
         |----------------------------------------------------------------------
+        | Run Log — Auto Lifecycle
+        |----------------------------------------------------------------------
+        |
+        | When enabled, the outermost artisan command and each queued job get
+        | their own run: started on CommandStarting / JobProcessing and finished
+        | on CommandFinished / JobProcessed / JobExceptionOccurred. A sync job
+        | inside an active run joins that run. `stopwatch:*` commands never
+        | create runs. An owned run that reached no checkpoint is dropped, also
+        | in debug mode, unless a job failed. Debug mode turns this on.
+        |
+        */
+        'auto_lifecycle' => (bool) env('STOPWATCH_LOG_AUTO_LIFECYCLE', false),
+
+        /*
+        |----------------------------------------------------------------------
         | Run Log — Exception Collector
         |----------------------------------------------------------------------
         |
         | When enabled, captured Throwables (StopwatchMiddleware sets these
-        | automatically on the request crash path; queue/command users can
-        | call $stopwatch->withTransientContext(Stopwatch::TRANSIENT_EXCEPTION,
-        | $e) themselves) are persisted as exception_class / exception_file /
+        | automatically on the request crash path, auto lifecycle on the job
+        | failure path; other code can call
+        | $stopwatch->withTransientContext(Stopwatch::TRANSIENT_EXCEPTION, $e)) are persisted as exception_class / exception_file /
         | exception_line frontmatter fields plus a ## Exception body section
         | with a top-N stack trace.
         |
@@ -225,6 +241,40 @@ return [
                 'value_max_bytes' => (int) env('STOPWATCH_LOG_CONTEXT_VALUE_MAX_BYTES', 4096),
             ],
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Debug Mode
+    |--------------------------------------------------------------------------
+    |
+    | STOPWATCH_DEBUG=true makes stopwatch a debugging tool: every checkpoint and
+    | probe() is appended at once to `<runs dir>/<ULID>.jsonl`, so it survives a
+    | crash and works in commands, jobs and tests. Read it with
+    | `stopwatch:runs:show latest`.
+    |
+    | Debug mode also forces the run log on with min duration 0, skip_empty off,
+    | detail `full` and auto_lifecycle on, whatever the run_log settings say,
+    | and adds a Location column to the reports.
+    |
+    | Guards: debug mode only works when `app.debug` is true or APP_ENV is
+    | `local` or `testing` (test suites often set APP_DEBUG=false), and never
+    | under Octane. When a guard blocks it, one warning is logged per process
+    | and a `.debug-blocked` note in the runs dir lets the read commands say why.
+    |
+    | `max_records` — checkpoint records written per run (all checkpoints, not
+    | only probes); later ones are counted, not written.
+    | `value_max_bytes` — per metadata value in the debug stream; larger JSON is
+    | cut with a marker.
+    |
+    | Metadata is written to disk as passed. Do not pass secrets.
+    |
+    */
+
+    'debug' => [
+        'enabled' => (bool) env('STOPWATCH_DEBUG', false),
+        'max_records' => (int) env('STOPWATCH_DEBUG_MAX_RECORDS', 1000),
+        'value_max_bytes' => (int) env('STOPWATCH_DEBUG_VALUE_MAX_BYTES', 4096),
     ],
 
     /*

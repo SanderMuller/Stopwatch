@@ -19,6 +19,14 @@ Publish the annotated config with `php artisan vendor:publish --tag=stopwatch-co
 | [Notifications](11-notifications.md) | `STOPWATCH_NOTIFY_THRESHOLD`, `STOPWATCH_MAIL_TO`, `STOPWATCH_MAIL_SUBJECT` |
 | [Toolbar](07-profiler-toolbar.md) | `STOPWATCH_INJECT`, `STOPWATCH_INJECT_AUTO_REGISTER`, `STOPWATCH_INJECT_ENVIRONMENTS`, `STOPWATCH_INJECT_POSITION`, `STOPWATCH_INJECT_SLOW_REQUEST_MS`, `STOPWATCH_INJECT_TRACK` |
 
+## Debug mode
+
+| Env | Default | Effect |
+|---|---|---|
+| `STOPWATCH_DEBUG` | `false` | stream every checkpoint to `<ULID>.jsonl`, add Location columns, force the run log on with min duration `0`, empty runs kept, `full` detail and auto lifecycle. Needs `APP_DEBUG=true` or `APP_ENV` `local`/`testing`; off under Octane |
+| `STOPWATCH_DEBUG_MAX_RECORDS` | `1000` | checkpoint records per run; later ones are counted, not written |
+| `STOPWATCH_DEBUG_VALUE_MAX_BYTES` | `4096` | per metadata value; larger JSON is cut with a marker |
+
 ## Run log
 
 | Env | Default | Effect |
@@ -30,6 +38,7 @@ Publish the annotated config with `php artisan vendor:publish --tag=stopwatch-co
 | `STOPWATCH_LOG_INCLUDE_BINDINGS` | `false` | persist SQL bindings in `full` mode (**PII opt-in**) |
 | `STOPWATCH_LOG_EXCEPTIONS_MESSAGE` | `false` | persist `$e->getMessage()` (**PII opt-in**) |
 | `STOPWATCH_LOG_COLLECT_CONTEXT` | `false` | capture visible `Context::all()` |
+| `STOPWATCH_LOG_AUTO_LIFECYCLE` | `false` | start and finish a run for the outermost artisan command and each queued job |
 
 <details>
 <summary>Retention, exception and context knobs</summary>

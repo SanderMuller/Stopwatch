@@ -5,15 +5,15 @@ namespace SanderMuller\Stopwatch\Console;
 use SanderMuller\Stopwatch\RunLog\RunLogStore;
 
 /**
- * Filter logic for {@see RunsListCommand} — extracted to keep the command class
- * within its cognitive-complexity budget.
+ * Filter logic for {@see RunsListCommand} and the MCP list tool — extracted to keep
+ * the command class within its cognitive-complexity budget.
  *
- * Each filter is a pure function over the `array{id, frontmatter}` shape returned
- * by {@see RunLogStore::listRuns()}.
+ * Each filter is a pure function over the row shape returned by
+ * {@see RunLogStore::listRuns()}.
  *
  * @internal
  *
- * @phpstan-type Row array{id: string, frontmatter: array<string, scalar|null>}
+ * @phpstan-type Row array{id: string, frontmatter: array<string, scalar|null>, state: string}
  */
 final class RunListFilters
 {
@@ -102,37 +102,6 @@ final class RunListFilters
 
             return true;
         }));
-    }
-
-    /**
-     * Parse a repeatable `--ctx key=value` option into a `key => value` map.
-     * Malformed entries (no `=`, empty key) are silently dropped.
-     *
-     * @param array<array-key, mixed> $raw
-     * @return array<string, string>
-     */
-    public static function parseCtxOption(array $raw): array
-    {
-        $parsed = [];
-
-        foreach ($raw as $entry) {
-            if (! is_string($entry)) {
-                continue;
-            }
-
-            if (! str_contains($entry, '=')) {
-                continue;
-            }
-
-            [$key, $value] = explode('=', $entry, 2);
-            $key = trim($key);
-
-            if ($key !== '') {
-                $parsed[$key] = $value;
-            }
-        }
-
-        return $parsed;
     }
 
     /**

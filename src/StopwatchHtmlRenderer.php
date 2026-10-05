@@ -205,13 +205,14 @@ final class StopwatchHtmlRenderer
         int $slowThresholdMs,
         string $tail,
         string $markdown = '',
+        bool $showLocations = false,
     ): string {
         $markdownB64 = base64_encode($markdown);
         $iconCopy = StopwatchIcons::clipboard('width:14px;height:14px;display:inline-block;flex-shrink:0;');
         $iconCheck = StopwatchIcons::check('width:14px;height:14px;display:inline-block;flex-shrink:0;');
         $count = $checkpoints->count();
         $segments = $checkpoints->renderSegments($totalMs, $slowThresholdMs);
-        $rows = $checkpoints->render($totalMs, $slowThresholdMs);
+        $rows = $checkpoints->render($totalMs, $slowThresholdMs, $showLocations);
         $totalsLabel = self::renderTotals($checkpoints->totals());
 
         $tailLabel = '<span title="Time elapsed between the last checkpoint and when the stopwatch finished" style="display:inline-flex;align-items:center;gap:4px;cursor:help;">' . StopwatchIcons::clock() . $tail . '</span>';

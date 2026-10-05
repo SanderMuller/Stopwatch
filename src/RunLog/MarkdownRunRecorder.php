@@ -75,7 +75,7 @@ final readonly class MarkdownRunRecorder implements RunRecorder
             return;
         }
 
-        $id = (string) Str::ulid();
+        $id = $stopwatch->runId() ?? (string) Str::ulid();
         $exception = $this->resolveException($stopwatch);
         $capturedContext = $this->resolveContext();
 
@@ -170,6 +170,7 @@ final readonly class MarkdownRunRecorder implements RunRecorder
             'method' => $runContext['method'] ?? null,
             'status' => $runContext['status'] ?? null,
             'command' => $runContext['command'] ?? null,
+            'job' => $runContext['job'] ?? null,
             'queries_total' => $totals['queries_total'],
             'query_ms_total' => $totals['query_ms_total'],
             'http_total' => $totals['http_total'],

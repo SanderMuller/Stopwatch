@@ -15,6 +15,15 @@ stopwatch()->stop();
 
 `stopwatch()->toString()` returns the total as a string (`"116ms"`).
 
+## Probes and run ids
+
+```php
+stopwatch()->probe('Loaded user', ['id' => $user->id]); // a checkpoint flagged as temporary
+stopwatch()->runId();                                   // ULID of the active or last run
+```
+
+`probe()` records exactly like `checkpoint()`; the flag marks it for removal and for the opt-in PHPStan rule. `runId()` is the file name of the run's markdown and JSONL files; it needs `symfony/uid`, which `laravel/framework` ships. Each entry of `toArray()['checkpoints']` carries `probe` and `location` (`path:line`).
+
 ## Enable and disable at runtime
 
 ```php

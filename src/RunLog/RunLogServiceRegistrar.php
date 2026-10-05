@@ -2,6 +2,7 @@
 
 namespace SanderMuller\Stopwatch\RunLog;
 
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use SanderMuller\Stopwatch\ServiceProvider;
 use SanderMuller\Stopwatch\Stopwatch;
@@ -20,6 +21,26 @@ final class RunLogServiceRegistrar
         $app->singleton(RunLogStore::class, static fn (): RunLogStore => new RunLogStore(self::resolvePath($app)));
         $app->singleton(MarkdownRunRecorder::class, static fn (): MarkdownRunRecorder => self::buildRecorder($app));
         $app->singleton(ConsoleCommandContextProvider::class);
+        $app->singleton(AutoLifecycle::class);
+        $app->singleton(JsonlRunStream::class, static fn (): JsonlRunStream => new JsonlRunStream(
+            store: $app->make(RunLogStore::class),
+            maxRecords: max(1, ConfigReader::fromMaybeArray(config('stopwatch.debug'))->int('max_records', 1000)),
+            valueMaxBytes: max(1, ConfigReader::fromMaybeArray(config('stopwatch.debug'))->int('value_max_bytes', 4096)),
+            maxRuns: self::reader()->int('max_files', 200),
+        ));
+    }
+
+    /**
+     * Listen for command and job boundaries when auto-lifecycle is on, directly or
+     * through debug mode. Runs at boot, before the first command starts.
+     */
+    public static function registerAutoLifecycle(Application $app): void
+    {
+        if (! AutoLifecycle::enabled()) {
+            return;
+        }
+
+        $app->make(AutoLifecycle::class)->register($app->make(Dispatcher::class));
     }
 
     public static function wire(Application $app, Stopwatch $stopwatch): void
@@ -32,6 +53,11 @@ final class RunLogServiceRegistrar
 
         $stopwatch->recordRunsTo($app->make(MarkdownRunRecorder::class));
         $stopwatch->pushRunContextProvider($app->make(ConsoleCommandContextProvider::class));
+
+        if (DebugMode::active()) {
+            $stopwatch->addCheckpointListener($app->make(JsonlRunStream::class));
+            $stopwatch->showLocations();
+        }
     }
 
     private static function buildRecorder(Application $app): MarkdownRunRecorder

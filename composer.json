@@ -43,6 +43,7 @@
         "illuminate/database": "^12.0|^13.0",
         "larastan/larastan": "^3.9",
         "laravel/boost": "^2.0||^3.0",
+        "laravel/mcp": "^1.0",
         "laravel/pao": "^1.0",
         "laravel/pint": "^1.24",
         "nunomaduro/collision": "^8.8.2",
@@ -63,7 +64,8 @@
         "tomasvotruba/type-coverage": ">=2.2.0 <2.2.2"
     },
     "suggest": {
-        "fruitcake/laravel-debugbar": "Display stopwatch checkpoints as a timeline in Debugbar"
+        "fruitcake/laravel-debugbar": "Display stopwatch checkpoints as a timeline in Debugbar",
+        "laravel/mcp": "Expose the run-log tools over MCP: as an own server (mcp:start stopwatch) and inside Laravel Boost"
     },
     "autoload": {
         "psr-4": {

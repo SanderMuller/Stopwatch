@@ -118,7 +118,7 @@ final class DebugbarCollector extends DataCollector implements Renderable
 
         if ($checkpoint['metadata'] !== null) {
             foreach ($checkpoint['metadata'] as $key => $value) {
-                $params[(string) $key] = StopwatchCheckpoint::formatMetadataValue($value);
+                $params[(string) $key] = StopwatchCheckpoint::formatMetadataValue($value, StopwatchCheckpoint::METADATA_DISPLAY_MAX_CHARS);
             }
         }
 

@@ -14,6 +14,8 @@ Attach metadata to any checkpoint:
 stopwatch()->checkpoint('Query executed', ['table' => 'users', 'rows' => 42]);
 ```
 
+Arrays and objects in metadata render as compact JSON, cut at 200 characters in log lines, the HTML report and Debugbar. Each checkpoint also records the `file:line` it was called from.
+
 ## Measure a closure
 
 ```php

@@ -75,7 +75,7 @@ final class StopwatchExpansionRenderer
         foreach ($checkpoint->metadata as $key => $value) {
             $rows .= '<div style="display:flex;gap:8px;font-variant-numeric:tabular-nums;">'
                 . '<span style="color:var(--sw-text-muted,#94a3b8);min-width:80px;flex-shrink:0;">' . e((string) $key) . '</span>'
-                . '<span style="color:var(--sw-text,#0f172a);overflow-wrap:anywhere;min-width:0;">' . e(StopwatchCheckpoint::formatMetadataValue($value)) . '</span>'
+                . '<span style="color:var(--sw-text,#0f172a);overflow-wrap:anywhere;min-width:0;">' . e(StopwatchCheckpoint::formatMetadataValue($value, StopwatchCheckpoint::METADATA_DISPLAY_MAX_CHARS)) . '</span>'
                 . '</div>';
         }
 

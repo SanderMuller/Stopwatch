@@ -34,7 +34,7 @@ final class RunLogStoreTest extends TestCase
 
         self::assertDirectoryExists($this->tempDir);
         self::assertFileExists($this->tempDir . '/.gitignore');
-        self::assertSame("*.md\n", file_get_contents($this->tempDir . '/.gitignore'));
+        self::assertSame("*.md\n*.jsonl\n.debug-blocked\n", file_get_contents($this->tempDir . '/.gitignore'));
     }
 
     public function test_write_and_get_run_round_trips_frontmatter_and_body(): void

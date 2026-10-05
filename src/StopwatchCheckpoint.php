@@ -40,6 +40,8 @@ final readonly class StopwatchCheckpoint implements Arrayable
         public ?float          $httpTimeMs = null,
         public ?array          $httpCalls = null,
         public ?array          $queryCalls = null,
+        public bool            $probe = false,
+        public ?string         $location = null,
     ) {
         $this->timeSinceLastCheckpoint = CarbonInterval::milliseconds($timeSinceLastCheckpointMs)->cascade();
         $this->timeSinceStopwatchStart = CarbonInterval::milliseconds($timeSinceStopwatchStartMs)->cascade();
@@ -77,19 +79,45 @@ final readonly class StopwatchCheckpoint implements Arrayable
         return "[{$deltaMs}ms / {$totalMs}ms] {$this->label}{$suffix}";
     }
 
-    public static function formatMetadataValue(mixed $value): string
+    /**
+     * Flags for every JSON encoding of user-supplied values. Invalid UTF-8 is
+     * substituted and unsupported parts (resources, recursion) become partial
+     * output, so one bad value never empties the whole encoding.
+     */
+    public const int SAFE_JSON_FLAGS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR;
+
+    /**
+     * Cap for non-scalar values in plain text, HTML and Debugbar output.
+     */
+    public const int METADATA_DISPLAY_MAX_CHARS = 200;
+
+    /**
+     * Scalars and Stringables render as-is. Other values render as compact JSON,
+     * cut to `$maxChars` characters when a cap is given.
+     */
+    public static function formatMetadataValue(mixed $value, ?int $maxChars = null): string
     {
-        if (! is_scalar($value) && ! $value instanceof Stringable) {
-            return 'non-scalar value (' . gettype($value) . ')';
+        if (is_scalar($value) || $value instanceof Stringable) {
+            return (string) $value;
         }
 
-        return (string) $value;
+        $json = json_encode($value, self::SAFE_JSON_FLAGS);
+
+        if ($json === false) {
+            return 'unencodable value (' . gettype($value) . ')';
+        }
+
+        if ($maxChars !== null && mb_strlen($json) > $maxChars) {
+            return mb_substr($json, 0, $maxChars) . '…';
+        }
+
+        return $json;
     }
 
     private function formatMetadataAsString(): string
     {
         return collect($this->metadata)
-            ->map(static fn (mixed $value, string|int $key): string => "{$key}=" . self::formatMetadataValue($value))
+            ->map(static fn (mixed $value, string|int $key): string => "{$key}=" . self::formatMetadataValue($value, self::METADATA_DISPLAY_MAX_CHARS))
             ->implode(', ');
     }
 
@@ -111,6 +139,8 @@ final readonly class StopwatchCheckpoint implements Arrayable
      *     httpTimeMs: float|null,
      *     httpCalls: list<array{method: string, url: string, status: int, durationMs: float}>|null,
      *     queryCalls: list<array{sql: string, bindings: array<array-key, mixed>, durationMs: float}>|null,
+     *     probe: bool,
+     *     location: string|null,
      * }
      */
     public function toArray(): array
@@ -132,6 +162,8 @@ final readonly class StopwatchCheckpoint implements Arrayable
             'httpTimeMs' => $this->httpTimeMs,
             'httpCalls' => $this->httpCalls,
             'queryCalls' => $this->queryCalls,
+            'probe' => $this->probe,
+            'location' => $this->location,
         ];
     }
 

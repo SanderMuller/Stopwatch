@@ -41,6 +41,8 @@ final class StopwatchCheckpointCollection extends Collection
         ?float          $httpTimeMs = null,
         ?array          $httpCalls = null,
         ?array          $queryCalls = null,
+        bool            $probe = false,
+        ?string         $location = null,
     ): self {
         return $this->add(
             new StopwatchCheckpoint(
@@ -58,6 +60,8 @@ final class StopwatchCheckpointCollection extends Collection
                 httpTimeMs: $httpTimeMs,
                 httpCalls: $httpCalls,
                 queryCalls: $queryCalls,
+                probe: $probe,
+                location: $location,
             ),
         );
     }
@@ -65,14 +69,14 @@ final class StopwatchCheckpointCollection extends Collection
     /**
      * @internal Renders the checkpoint rows for the HTML profile. Output structure is not stable.
      */
-    public function render(float $totalMs, int $slowThreshold): string
+    public function render(float $totalMs, int $slowThreshold, bool $showLocations = false): string
     {
         $out = '';
         $idx = 0;
 
         foreach ($this->items as $item) {
             $color = self::PALETTE[$idx % count(self::PALETTE)];
-            $out .= StopwatchCheckpointHtmlRenderer::row($item, $totalMs, $slowThreshold, $color, $idx);
+            $out .= StopwatchCheckpointHtmlRenderer::row($item, $totalMs, $slowThreshold, $color, $idx, $showLocations ? $item->location : null);
             $idx++;
         }
 

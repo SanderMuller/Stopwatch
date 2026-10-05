@@ -10,7 +10,8 @@ use SanderMuller\Stopwatch\Stopwatch;
 /**
  * Persistent run-log context provider that captures the currently-running
  * artisan command name (set on `CommandStarting`) and exposes it as
- * `['command' => 'app:reindex']` when invoked at {@see Stopwatch::finish()} time.
+ * `['command' => 'app:reindex']` when invoked at {@see Stopwatch::finish()} time
+ * (and at the first checkpoint in debug mode).
  *
  * Maintains a stack so `Artisan::call()` from inside a command — which fires
  * a nested `CommandStarting` / `CommandFinished` pair — does not corrupt the
@@ -18,8 +19,8 @@ use SanderMuller\Stopwatch\Stopwatch;
  * command, restoring the previous value when the inner command finishes.
  *
  * Wired via {@see Stopwatch::pushRunContextProvider()}, which is appended once
- * by the service provider — so it survives `start()`/`reset()` and is evaluated
- * after the command's `handle()` has been allowed to write its own checkpoints.
+ * by the service provider — so it survives `start()`/`reset()`. It reads the
+ * stack only when it is invoked, so it reports the command that is running then.
  */
 final class ConsoleCommandContextProvider
 {

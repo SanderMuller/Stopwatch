@@ -221,7 +221,7 @@ final class StopwatchTest extends TestCase
         $stopwatch->checkpoint('NonScalar', ['nested' => ['a', 'b']]);
 
         $formatted = $stopwatch->lastCheckpointFormatted();
-        self::assertStringContainsString('non-scalar value (array)', $formatted);
+        self::assertStringContainsString('nested=["a","b"]', $formatted);
     }
 
     public function test_to_log_returns_self(): void

@@ -14,7 +14,7 @@ final class StopwatchCheckpointHtmlRenderer
     /** Memory deltas smaller than this in absolute bytes render in the dim color so noise stays quiet. */
     private const int MEMORY_DIM_THRESHOLD_BYTES = 10 * 1024;
 
-    public static function row(StopwatchCheckpoint $checkpoint, float $totalMs, int $slowThreshold, string $color, int $index): string
+    public static function row(StopwatchCheckpoint $checkpoint, float $totalMs, int $slowThreshold, string $color, int $index, ?string $location = null): string
     {
         $delta = $checkpoint->timeSinceLastCheckpoint->totalMilliseconds;
         $cum = (int) round($checkpoint->timeSinceStopwatchStart->totalMilliseconds);
@@ -34,6 +34,7 @@ final class StopwatchCheckpointHtmlRenderer
 
         $metricStack = self::metricStack($checkpoint, $deltaFmt, $msColor, $msWeight, $slowClass !== '');
         $metaBlock = self::metadataBlock($checkpoint);
+        $locationLine = StopwatchLocationRenderer::line($location);
         $tip = self::tip($checkpoint, $deltaFmt, $cum, $shareLabel);
         $expansion = StopwatchExpansionRenderer::panel($checkpoint, $totalMs, $slowThreshold);
 
@@ -47,6 +48,7 @@ final class StopwatchCheckpointHtmlRenderer
                       <span style="font-weight:500;color:var(--sw-text,#0f172a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">{$label}</span>
                       {$slowBadge}{$startMarker}
                     </div>
+                    {$locationLine}
                     {$metaBlock}
                   </div>
                 </div>
@@ -132,7 +134,7 @@ final class StopwatchCheckpointHtmlRenderer
                 . e((string) $key)
                 . '</span>'
                 . '<span style="color:var(--sw-chip-val,#334155);font-variant-numeric:tabular-nums;">'
-                . e(StopwatchCheckpoint::formatMetadataValue($value))
+                . e(StopwatchCheckpoint::formatMetadataValue($value, StopwatchCheckpoint::METADATA_DISPLAY_MAX_CHARS))
                 . '</span>'
                 . '</span>';
         }

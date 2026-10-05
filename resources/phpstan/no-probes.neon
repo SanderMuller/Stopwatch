@@ -1,0 +1,7 @@
+# Fails PHPStan on every Stopwatch::probe() call, so temporary debug probes
+# cannot be committed. Opt in from your phpstan.neon:
+#
+#   includes:
+#       - vendor/sandermuller/stopwatch/resources/phpstan/no-probes.neon
+rules:
+    - SanderMuller\Stopwatch\PHPStan\NoProbeCallsRule

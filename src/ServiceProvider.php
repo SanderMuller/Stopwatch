@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\Blade;
 use Override;
 use SanderMuller\Stopwatch\Integrations\DebugbarRegistrar;
 use SanderMuller\Stopwatch\Notifications\StopwatchNotificationChannel;
+use SanderMuller\Stopwatch\RunLog\DebugMode;
 use SanderMuller\Stopwatch\RunLog\RunLogServiceRegistrar;
+use SanderMuller\Stopwatch\RunLog\RunLogStore;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -24,6 +26,7 @@ final class ServiceProvider extends PackageServiceProvider
                 Console\RunsListCommand::class,
                 Console\RunsShowCommand::class,
                 Console\RunsClearCommand::class,
+                Console\RunsDiffCommand::class,
             ]);
     }
 
@@ -45,6 +48,8 @@ final class ServiceProvider extends PackageServiceProvider
         $this->registerInjectAlias();
 
         InjectMiddlewareRegistrar::register($this->app);
+        RunLogServiceRegistrar::registerAutoLifecycle($this->app);
+        Mcp\McpRegistrar::register($this->app);
         DebugbarRegistrar::register($this->app);
     }
 
@@ -81,6 +86,22 @@ final class ServiceProvider extends PackageServiceProvider
         }
     }
 
+    /**
+     * Debug mode forces the run-log preset before the run log is wired; a
+     * requested but blocked debug mode logs one warning instead.
+     */
+    private function applyDebugMode(): void
+    {
+        if (DebugMode::active()) {
+            DebugMode::applyPreset();
+            $this->app->make(RunLogStore::class)->clearDebugBlocked();
+
+            return;
+        }
+
+        DebugMode::warnIfBlocked();
+    }
+
     private function configureStopwatch(Stopwatch $stopwatch): Stopwatch
     {
         /** @var array<string, mixed> $config */
@@ -91,6 +112,8 @@ final class ServiceProvider extends PackageServiceProvider
 
             return $stopwatch;
         }
+
+        $this->applyDebugMode();
 
         $outputEnum = is_string($config['output'] ?? null)
             ? StopwatchOutput::tryFrom($config['output'])
