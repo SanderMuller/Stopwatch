@@ -9,6 +9,8 @@
 
 A lightweight profiler for PHP and Laravel. Add checkpoints, measure closures, track queries, memory and outbound HTTP, and see where the time goes. Use it when a request, command or job feels slow and an APM is more than you need. It runs in production, in tests and in CI.
 
+It also works as a debugger you read afterwards: with `STOPWATCH_DEBUG=true`, `stopwatch()->probe('label', [...])` calls are written to disk as they happen, and `php artisan stopwatch:runs:show latest` shows their values in execution order. An AI agent can run that loop on its own.
+
 **PHP 8.3+ · Laravel 12.x / 13.x**
 
 ## Installation
@@ -53,7 +55,7 @@ Published at https://sandermuller.github.io/Stopwatch/.
 - [Why Stopwatch?](https://sandermuller.github.io/Stopwatch/why-stopwatch): what it answers, and when an APM is the better tool
 - [Installation](https://sandermuller.github.io/Stopwatch/installation) · [Getting started](https://sandermuller.github.io/Stopwatch/getting-started) · [Checkpoints](https://sandermuller.github.io/Stopwatch/checkpoints) · [Query, memory and HTTP tracking](https://sandermuller.github.io/Stopwatch/tracking)
 - [HTML report](https://sandermuller.github.io/Stopwatch/html-report) · [Profiler toolbar](https://sandermuller.github.io/Stopwatch/profiler-toolbar) · [Server-Timing and Debugbar](https://sandermuller.github.io/Stopwatch/server-timing)
-- [Persistent run log](https://sandermuller.github.io/Stopwatch/run-log) · [Crash diagnostics](https://sandermuller.github.io/Stopwatch/crash-diagnostics)
+- [Persistent run log](https://sandermuller.github.io/Stopwatch/run-log) · [Crash diagnostics](https://sandermuller.github.io/Stopwatch/crash-diagnostics) · [Debugging with probes](https://sandermuller.github.io/Stopwatch/debugging)
 - [Slow-run notifications](https://sandermuller.github.io/Stopwatch/notifications) · [AI assistant integration](https://sandermuller.github.io/Stopwatch/ai-assistant) · [Standalone PHP](https://sandermuller.github.io/Stopwatch/standalone)
 - [Configuration](https://sandermuller.github.io/Stopwatch/configuration) · [API](https://sandermuller.github.io/Stopwatch/api)
 

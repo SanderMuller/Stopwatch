@@ -26,4 +26,4 @@ An APM. There is no aggregation across requests, no service map, no alerting on 
 
 ## Compatibility
 
-PHP 8.3+ · Laravel 12.x / 13.x. The profiler core runs [without Laravel](13-standalone.md); query tracking, the toolbar, and the run log do not.
+PHP 8.3+ · Laravel 12.x / 13.x. The profiler core runs [without Laravel](14-standalone.md); query tracking, the toolbar, and the run log do not.

@@ -135,7 +135,7 @@ export default defineConfig({
     themeConfig: {
         nav: [
             { text: 'Guide', link: link('01-why-stopwatch') },
-            { text: 'Configuration', link: link('13-configuration') },
+            { text: 'Configuration', link: link('15-configuration') },
             { text: 'Releases', link: 'https://github.com/SanderMuller/Stopwatch/releases' },
             { text: 'Packagist', link: 'https://packagist.org/packages/sandermuller/stopwatch' },
         ],

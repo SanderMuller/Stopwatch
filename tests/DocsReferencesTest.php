@@ -23,9 +23,10 @@ final class DocsReferencesTest extends TestCase
             'resources/boost/skills/stopwatch-profile/SKILL.md',
             'docs/04-checkpoints.md',
             'docs/09-run-log.md',
-            'docs/12-ai-assistant.md',
-            'docs/14-configuration.md',
-            'docs/15-api.md',
+            'docs/11-debugging.md',
+            'docs/13-ai-assistant.md',
+            'docs/15-configuration.md',
+            'docs/16-api.md',
             'docs/llms-intro.md',
         ] as $file) {
             yield $file => [$root . '/' . $file];

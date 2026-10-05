@@ -87,23 +87,29 @@ export const sections: DocSection[] = [
                 text: 'Crash diagnostics',
                 blurb: 'Capture the exception behind a failed run and pivot to laravel.log.',
             },
+            {
+                file: '11-debugging',
+                text: 'Debugging with probes',
+                blurb: 'Put probe() calls on a suspect path, run it once, and read the values back in order.',
+                agent: 'Debug mode (STOPWATCH_DEBUG=true): probe() calls written to a per-run JSONL stream, read with stopwatch:runs:show latest, compared with stopwatch:runs:diff, and removed with an exact grep or the opt-in PHPStan rule.',
+            },
         ],
     },
     {
         text: 'More',
         pages: [
             {
-                file: '11-notifications',
+                file: '12-notifications',
                 text: 'Slow-run notifications',
                 blurb: 'Dispatch a notification when a run crosses a duration threshold.',
             },
             {
-                file: '12-ai-assistant',
+                file: '13-ai-assistant',
                 text: 'AI assistant integration',
                 blurb: 'Let an agent drive the run log instead of running the commands yourself.',
             },
             {
-                file: '13-standalone',
+                file: '14-standalone',
                 text: 'Standalone PHP',
                 blurb: 'Use the profiler outside Laravel, and what needs the container.',
             },
@@ -113,12 +119,12 @@ export const sections: DocSection[] = [
         text: 'Reference',
         pages: [
             {
-                file: '14-configuration',
+                file: '15-configuration',
                 text: 'Configuration reference',
                 blurb: 'Every env var and config key, grouped by the feature that owns it.',
             },
             {
-                file: '15-api',
+                file: '16-api',
                 text: 'API reference',
                 blurb: 'Lifecycle, serialization, and the runtime enable/disable switch.',
             },

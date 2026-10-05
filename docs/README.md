@@ -8,8 +8,8 @@ Published at **https://sandermuller.github.io/Stopwatch/**. These files are the 
 
 **Reading the profile:** [HTML report](06-html-report.md) · [Profiler toolbar](07-profiler-toolbar.md) · [Server-Timing and Debugbar](08-server-timing.md)
 
-**Run log:** [Persistent run log](09-run-log.md) · [Crash diagnostics](10-crash-diagnostics.md)
+**Run log:** [Persistent run log](09-run-log.md) · [Crash diagnostics](10-crash-diagnostics.md) · [Debugging with probes](11-debugging.md)
 
-**More:** [Slow-run notifications](11-notifications.md) · [AI assistant integration](12-ai-assistant.md) · [Standalone PHP](13-standalone.md)
+**More:** [Slow-run notifications](12-notifications.md) · [AI assistant integration](13-ai-assistant.md) · [Standalone PHP](14-standalone.md)
 
-**Reference:** [Configuration](14-configuration.md) · [API](15-api.md)
+**Reference:** [Configuration](15-configuration.md) · [API](16-api.md)

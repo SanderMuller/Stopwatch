@@ -22,7 +22,7 @@ The service provider prepends the two middleware for you, `StopwatchInjectMiddle
 
 An active toolbar also turns query, memory and HTTP [tracking](05-tracking.md) on, whatever `STOPWATCH_TRACK_QUERIES`, `STOPWATCH_TRACK_MEMORY` and `STOPWATCH_TRACK_HTTP` say. Without it the query, HTTP and memory columns render as dashes. Set `STOPWATCH_INJECT_TRACK=false` to leave those settings alone.
 
-Autostart finishes the stopwatch on every web request, so a `Server-Timing` header appears and the [run log](09-run-log.md) and [notifications](11-notifications.md) start recording when those are on.
+Autostart finishes the stopwatch on every web request, so a `Server-Timing` header appears and the [run log](09-run-log.md) and [notifications](12-notifications.md) start recording when those are on.
 
 ### Manual registration
 

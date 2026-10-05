@@ -43,6 +43,9 @@ Pruning is probabilistic and in-process (5%). For a predictable schedule:
 
 ## Debug mode
 
+The [Debugging with probes](11-debugging.md) page walks through the whole loop.
+
+
 `STOPWATCH_DEBUG=true` appends every checkpoint and `probe()` to `storage/stopwatch/runs/<ULID>.jsonl` the moment it happens, beside the run's markdown file. Probes survive an exception, `exit()` or `dd()`, and need no `finish()`. It only works with `APP_DEBUG=true` or in a `local` or `testing` environment, never under Octane, and it forces the run log on with no minimum duration, empty runs kept, `full` detail and auto lifecycle.
 
 ```bash
