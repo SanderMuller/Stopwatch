@@ -8,6 +8,38 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.15.0](https://github.com/SanderMuller/Stopwatch/compare/v0.14.0...v0.15.0) - 2026-10-05
+
+<!-- verified-sha: e229755528ae3a7b8faddf61de40c0b6a3bd9126 -->
+### Added
+
+- Added debug mode (`STOPWATCH_DEBUG=true`): each checkpoint is written to a per-run JSONL file as it happens.
+- Added `probe()` for temporary debug checkpoints, and `runId()`.
+- Added the caller `file:line` to every checkpoint (`location` in `toArray()`), shown as a column in debug mode.
+- Added `stopwatch:runs:show latest`, `--format=json`, and a State column in `stopwatch:runs:list`.
+- Added `stopwatch:runs:diff` to compare two debug runs, including changed metadata values.
+- Added automatic start and finish for artisan commands and queued jobs (`STOPWATCH_LOG_AUTO_LIFECYCLE`).
+- Added MCP tools for the run log, as a `stopwatch` server and inside Laravel Boost (needs `laravel/mcp`).
+- Added an opt-in PHPStan rule that fails on `probe()` calls: `resources/phpstan/no-probes.neon`.
+- Added the `stopwatch-debug` agent skill and a "Debugging with probes" docs page.
+
+### Changed
+
+- Arrays and objects in metadata now render as compact JSON, capped at 200 characters, in logs, HTML, Debugbar and mail.
+- `StopwatchOutput::Dump` now dumps the metadata array next to the checkpoint line.
+- SQL bindings are stored as the database received them: dates in the grammar's format, booleans as `0`/`1`.
+- `StopwatchMiddleware::autoStart()` now starts a new run when the previous one ended.
+- Run-log frontmatter has a new `job` key.
+- `stopwatch:runs:clear` and pruning count a run's `.md` and `.jsonl` files as one run.
+
+### Fixed
+
+- Fixed one invalid UTF-8 metadata or binding value emptying the whole cell in the run log.
+- Fixed a `false` SQL binding rendering as an empty string in the HTML query panel.
+- Fixed `stopwatch:runs:show` reading a `.md` file outside the runs directory when given a crafted id.
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.14.0...v0.15.0
+
 ## [v0.14.0](https://github.com/SanderMuller/Stopwatch/compare/v0.13.1...v0.14.0) - 2026-09-02
 
 <!-- verified-sha: 7763cdc493492a9f69d67cec4693e0abe4a48560 -->
@@ -54,6 +86,7 @@ the release workflow promotes it into this file as part of the tag flow.
 - Autostart now runs on every web request under auto-registration, so `Server-Timing`, the run log and notifications activate with it. Opt out:
   ```dotenv
   STOPWATCH_INJECT_AUTO_REGISTER=false
+  
   
   
   
