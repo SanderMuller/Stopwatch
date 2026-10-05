@@ -20,7 +20,7 @@ php artisan stopwatch:runs:show <id>          # or: latest
 php artisan stopwatch:runs:clear
 ```
 
-The list has a **State** column: `finished`, or for a run that only has a debug stream, `shutdown`, `restarted` or `unfinished` (see [Debug mode](#debug-mode)).
+The list has a **State** column: `finished`, or for a run that only has a debug stream, `shutdown`, `restarted` or `unfinished` (see [Debugging with probes](11-debugging.md#read-the-run)).
 
 <details>
 <summary>Filtering and scheduled cleanup</summary>
@@ -43,18 +43,7 @@ Pruning is probabilistic and in-process (5%). For a predictable schedule:
 
 ## Debug mode
 
-The [Debugging with probes](11-debugging.md) page walks through the whole loop.
-
-
-`STOPWATCH_DEBUG=true` appends every checkpoint and `probe()` to `storage/stopwatch/runs/<ULID>.jsonl` the moment it happens, beside the run's markdown file. Probes survive an exception, `exit()` or `dd()`, and need no `finish()`. It only works with `APP_DEBUG=true` or in a `local` or `testing` environment, never under Octane, and it forces the run log on with no minimum duration, empty runs kept, `full` detail and auto lifecycle.
-
-```bash
-php artisan stopwatch:runs:show latest                 # table, with a Location column
-php artisan stopwatch:runs:show latest --format=json   # the raw records
-php artisan stopwatch:runs:diff <before-id> latest     # timing and changed values per checkpoint
-```
-
-A stream-only run's state comes from its last record: `shutdown` (the process ended without `finish()`, as in a test), `restarted` (`start()` was called mid-run), or `unfinished` (no end record: memory or time limit, a killed process, or still running). Each run keeps at most 1000 records (`STOPWATCH_DEBUG_MAX_RECORDS`) and 4096 bytes per metadata value (`STOPWATCH_DEBUG_VALUE_MAX_BYTES`). Metadata is written as passed, so keep secrets out of it.
+`STOPWATCH_DEBUG=true` also writes each checkpoint to `storage/stopwatch/runs/<ULID>.jsonl` the moment it happens, beside the run's markdown file, so a run that never reaches `finish()` can still be read. [Debugging with probes](11-debugging.md) covers the loop: `probe()`, `stopwatch:runs:show latest`, the run states, `stopwatch:runs:diff`, and the limits.
 
 ## Debugging a slow request
 

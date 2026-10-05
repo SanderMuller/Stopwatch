@@ -3,7 +3,7 @@
 The package ships two AI [skills](https://docs.claude.com/en/docs/claude-code/skills):
 
 - `stopwatch-profile` — where the time goes: checkpoints, trackers, reading the card, driving the [run-log](09-run-log.md) commands, production tripwires.
-- `stopwatch-debug` — why the code does the wrong thing: a hypothesis, `probe()` calls with values, [debug mode](09-run-log.md#debug-mode), reading `stopwatch:runs:show latest`, comparing runs with `stopwatch:runs:diff`, and removing the probes afterwards.
+- `stopwatch-debug` — why the code does the wrong thing: a hypothesis, `probe()` calls with values, [debug mode](11-debugging.md), reading `stopwatch:runs:show latest`, comparing runs with `stopwatch:runs:diff`, and removing the probes afterwards.
 
 With [`laravel/boost`](https://github.com/laravel/boost) installed it is auto-discovered from `vendor/sandermuller/stopwatch/resources/boost/skills/`; run `php artisan boost:install`. Any Boost-compatible agent works: Claude Code, Cursor, Copilot.
 
