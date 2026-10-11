@@ -69,7 +69,7 @@ final class StopwatchTransientContextTest extends TestCase
     {
         $captured = null;
         $stopwatch = $this->makeStopwatch();
-        $stopwatch->recordRunsTo($this->captureRecorder(function (Stopwatch $sw) use (&$captured): void {
+        $stopwatch->recordRunsTo($this->captureRecorder(static function (Stopwatch $sw) use (&$captured): void {
             $captured = $sw->transientContext(Stopwatch::TRANSIENT_EXCEPTION);
         }));
 

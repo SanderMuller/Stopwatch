@@ -41,5 +41,6 @@ RELEASE_NOTES_*.md      export-ignore
 UPGRADING.md            export-ignore
 index.php               export-ignore
 snap.php                export-ignore
+structarmed.php         export-ignore
 testbench.yaml          export-ignore
 workbench/              export-ignore

@@ -172,7 +172,7 @@ final readonly class StopwatchCheckpoint implements Arrayable
         $absBytes = abs($bytes);
 
         return match (true) {
-            $absBytes >= 1048576 => round($bytes / 1048576, 1) . 'MB',
+            $absBytes >= 1_048_576 => round($bytes / 1_048_576, 1) . 'MB',
             $absBytes >= 1024 => round($bytes / 1024, 1) . 'KB',
             default => $bytes . 'B',
         };

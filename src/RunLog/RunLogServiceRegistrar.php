@@ -4,12 +4,11 @@ namespace SanderMuller\Stopwatch\RunLog;
 
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
-use SanderMuller\Stopwatch\ServiceProvider;
 use SanderMuller\Stopwatch\Stopwatch;
 
 /**
- * Container wiring for the run-log feature. Extracted from {@see ServiceProvider}
- * to keep that class within its cognitive-complexity budget.
+ * Container wiring for the run-log feature. Extracted from the package service
+ * provider to keep that class within its cognitive-complexity budget.
  *
  * Helpers for config decoding live in {@see ConfigReader}; collector construction
  * lives in dedicated {@see CollectorBuilder} static helpers.

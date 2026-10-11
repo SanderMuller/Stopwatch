@@ -137,7 +137,7 @@ final class AttributeModeTest extends TestCase
 
         $logged = [];
         Log::shouldReceive('debug')
-            ->andReturnUsing(function (string $message) use (&$logged): void {
+            ->andReturnUsing(static function (string $message) use (&$logged): void {
                 $logged[] = $message;
             });
 
