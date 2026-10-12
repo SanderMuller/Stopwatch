@@ -304,11 +304,11 @@ final class StopwatchTest extends TestCase
         $falsyCalls = 0;
 
         $result = $stopwatch
-            ->when(true, function (Stopwatch $sw) use (&$truthyCalls, $stopwatch): void {
+            ->when(true, static function (Stopwatch $sw) use (&$truthyCalls, $stopwatch): void {
                 $truthyCalls++;
                 self::assertSame($stopwatch, $sw);
             })
-            ->when(false, function () use (&$falsyCalls): void {
+            ->when(false, static function () use (&$falsyCalls): void {
                 $falsyCalls++;
             });
 
@@ -326,10 +326,10 @@ final class StopwatchTest extends TestCase
 
         $stopwatch->when(
             value: false,
-            callback: function () use (&$primary): void {
+            callback: static function () use (&$primary): void {
                 $primary++;
             },
-            default: function () use (&$default): void {
+            default: static function () use (&$default): void {
                 $default++;
             },
         );
@@ -344,8 +344,8 @@ final class StopwatchTest extends TestCase
 
         $calls = 0;
         $stopwatch->when(
-            fn (Stopwatch $sw): bool => $sw->enabled(),
-            function () use (&$calls): void {
+            static fn (Stopwatch $sw): bool => $sw->enabled(),
+            static function () use (&$calls): void {
                 $calls++;
             },
         );
@@ -359,10 +359,10 @@ final class StopwatchTest extends TestCase
 
         $calls = 0;
         $stopwatch
-            ->unless(false, function () use (&$calls): void {
+            ->unless(false, static function () use (&$calls): void {
                 $calls++;
             })
-            ->unless(true, function () use (&$calls): void {
+            ->unless(true, static function () use (&$calls): void {
                 $calls++;
             });
 

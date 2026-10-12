@@ -37,6 +37,7 @@
         "symfony/var-dumper": "^7.3.3|^8.0"
     },
     "require-dev": {
+        "boundwize/structarmed": "^0.19",
         "driftingly/rector-laravel": "^2.3",
         "fakerphp/faker": "^1.24",
         "fruitcake/laravel-debugbar": "^4.2",
@@ -91,12 +92,14 @@
         "qa": [
             "@rector",
             "@format",
-            "@phpstan-simplified"
+            "@phpstan-simplified",
+            "@structarmed"
         ],
         "fix-cs": "vendor/bin/pint",
         "pint": "vendor/bin/pint",
         "format": "vendor/bin/pint",
         "rector": "vendor/bin/rector process",
+        "structarmed": "vendor/bin/structarmed analyze",
         "sync-ai": "vendor/bin/boost sync",
         "test": "vendor/bin/phpunit",
         "post-update-cmd": [

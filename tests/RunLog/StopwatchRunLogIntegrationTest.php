@@ -16,7 +16,7 @@ final class StopwatchRunLogIntegrationTest extends TestCase
     {
         $captured = null;
         $stopwatch = $this->makeStopwatch();
-        $stopwatch->recordRunsTo($this->makeRecorder(function (Stopwatch $sw, array $ctx) use (&$captured): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function (Stopwatch $sw, array $ctx) use (&$captured): void {
             $captured = $ctx;
         }));
 
@@ -32,7 +32,7 @@ final class StopwatchRunLogIntegrationTest extends TestCase
     {
         $count = 0;
         $stopwatch = $this->makeStopwatch();
-        $stopwatch->recordRunsTo($this->makeRecorder(function () use (&$count): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function () use (&$count): void {
             $count++;
         }))->start();
         $stopwatch->checkpoint('Step');
@@ -49,7 +49,7 @@ final class StopwatchRunLogIntegrationTest extends TestCase
     {
         Log::spy();
         $stopwatch = $this->makeStopwatch();
-        $stopwatch->recordRunsTo($this->makeRecorder(function (): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function (): void {
             throw new RuntimeException('boom');
         }))->start();
         $stopwatch->checkpoint('Step');
@@ -63,7 +63,7 @@ final class StopwatchRunLogIntegrationTest extends TestCase
     {
         $recorderCalled = false;
         $stopwatch = $this->makeStopwatch();
-        $stopwatch->recordRunsTo($this->makeRecorder(function () use (&$recorderCalled): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function () use (&$recorderCalled): void {
             $recorderCalled = true;
         }));
 
@@ -91,10 +91,10 @@ final class StopwatchRunLogIntegrationTest extends TestCase
         $second = 0;
 
         $stopwatch = $this->makeStopwatch();
-        $stopwatch->recordRunsTo($this->makeRecorder(function () use (&$first): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function () use (&$first): void {
             $first++;
         }));
-        $stopwatch->recordRunsTo($this->makeRecorder(function () use (&$second): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function () use (&$second): void {
             $second++;
         }));
 
@@ -112,7 +112,7 @@ final class StopwatchRunLogIntegrationTest extends TestCase
         $stopwatch = $this->makeStopwatch();
 
         $stopwatch->pushRunContextProvider(static fn (): array => ['command' => 'app:reindex']);
-        $stopwatch->recordRunsTo($this->makeRecorder(function (Stopwatch $sw, array $ctx) use (&$captured): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function (Stopwatch $sw, array $ctx) use (&$captured): void {
             $captured = $ctx;
         }));
 
@@ -137,7 +137,7 @@ final class StopwatchRunLogIntegrationTest extends TestCase
         $captured = null;
         $stopwatch = $this->makeStopwatch();
         $stopwatch->pushRunContextProvider(static fn (): array => ['url' => '/from-provider', 'method' => 'GET']);
-        $stopwatch->recordRunsTo($this->makeRecorder(function (Stopwatch $sw, array $ctx) use (&$captured): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function (Stopwatch $sw, array $ctx) use (&$captured): void {
             $captured = $ctx;
         }));
 
@@ -160,7 +160,7 @@ final class StopwatchRunLogIntegrationTest extends TestCase
             throw new RuntimeException('provider boom');
         });
         $stopwatch->pushRunContextProvider(static fn (): array => ['command' => 'app:still-fires']);
-        $stopwatch->recordRunsTo($this->makeRecorder(function (Stopwatch $sw, array $ctx) use (&$captured): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function (Stopwatch $sw, array $ctx) use (&$captured): void {
             $captured = $ctx;
         }));
 
@@ -175,7 +175,7 @@ final class StopwatchRunLogIntegrationTest extends TestCase
     {
         $captured = null;
         $stopwatch = $this->makeStopwatch();
-        $stopwatch->recordRunsTo($this->makeRecorder(function (Stopwatch $sw, array $ctx) use (&$captured): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function (Stopwatch $sw, array $ctx) use (&$captured): void {
             $captured = $ctx;
         }));
 
@@ -199,7 +199,7 @@ final class StopwatchRunLogIntegrationTest extends TestCase
     {
         $captured = null;
         $stopwatch = $this->makeStopwatch();
-        $stopwatch->recordRunsTo($this->makeRecorder(function (Stopwatch $sw, array $ctx) use (&$captured): void {
+        $stopwatch->recordRunsTo($this->makeRecorder(static function (Stopwatch $sw, array $ctx) use (&$captured): void {
             $captured = $ctx;
         }));
 

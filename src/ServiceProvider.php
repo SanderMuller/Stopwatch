@@ -41,7 +41,7 @@ final class ServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
-        Blade::directive('stopwatch', function (): string {
+        Blade::directive('stopwatch', static function (): string {
             return '<?php echo app(' . Stopwatch::class . '::class)->render(); ?>';
         });
 
