@@ -1,6 +1,11 @@
 name: structarmed
 
 on:
+  push:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - '.github/workflows/structarmed.yml'
   pull_request:
     paths:
       - '**.php'
