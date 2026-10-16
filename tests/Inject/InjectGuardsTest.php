@@ -3,6 +3,7 @@
 namespace SanderMuller\Stopwatch\Tests\Inject;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use SanderMuller\Stopwatch\Stopwatch;
 use SanderMuller\Stopwatch\StopwatchInjectMiddleware;
 use SanderMuller\Stopwatch\StopwatchMiddleware;
@@ -228,6 +229,20 @@ final class InjectGuardsTest extends TestCase
         $response = $this->get('/g-nostart');
 
         self::assertStringNotContainsString('<!--stopwatch-toolbar-->', (string) $response->getContent());
+    }
+
+    public function test_skips_without_the_ordering_hint_when_stopwatch_is_disabled(): void
+    {
+        config(['stopwatch.enabled' => false]);
+        $this->app->make(Stopwatch::class)->disable();
+        Log::spy();
+
+        $this->registerHtmlRoute('/g-disabled', '<html><body>hi</body></html>');
+
+        $response = $this->get('/g-disabled');
+
+        self::assertStringNotContainsString('<!--stopwatch-toolbar-->', (string) $response->getContent());
+        Log::shouldNotHaveReceived('debug');
     }
 
     public function test_skips_when_inject_inner_to_autostart(): void

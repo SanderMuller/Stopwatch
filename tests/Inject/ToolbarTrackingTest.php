@@ -68,6 +68,21 @@ final class ToolbarTrackingTest extends TestCase
         self::assertNull($checkpoint['httpCount']);
     }
 
+    public function test_an_invalid_mode_keeps_the_trackers_off(): void
+    {
+        $this->config = [
+            'stopwatch.inject.mode' => false,
+            'stopwatch.inject.allowed_environments' => 'testing',
+        ];
+        $this->refreshApplication();
+
+        $checkpoint = $this->firstCheckpoint();
+
+        self::assertNull($checkpoint['queryCount']);
+        self::assertNull($checkpoint['memoryDelta']);
+        self::assertNull($checkpoint['httpCount']);
+    }
+
     public function test_track_false_keeps_the_trackers_off(): void
     {
         $this->config = [

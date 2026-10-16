@@ -38,20 +38,7 @@ final class StopwatchInjectMiddleware
     /** @phpstan-ignore complexity.functionLike */
     private function shouldInject(Request $request, Response $response): bool
     {
-        /** @var array<string, mixed> $config */
-        $config = (array) config('stopwatch.inject', []);
-
-        $mode = is_string($config['mode'] ?? null) ? $config['mode'] : 'off';
-
-        if ($mode === 'off') {
-            return false;
-        }
-
-        if ($this->isOctane()) {
-            return false;
-        }
-
-        if (! $this->environmentAllowed($config)) {
+        if (! InjectSettings::toolbarActive()) {
             return false;
         }
 
@@ -83,18 +70,7 @@ final class StopwatchInjectMiddleware
             return false;
         }
 
-        return $this->modeAllows($mode, $request);
-    }
-
-    private function isOctane(): bool
-    {
-        return app()->bound('octane');
-    }
-
-    /** @param array<string, mixed> $config */
-    private function environmentAllowed(array $config): bool
-    {
-        return InjectEnvironmentGate::allows($config['allowed_environments'] ?? 'local');
+        return $this->modeAllows(InjectSettings::mode(), $request);
     }
 
     private function isHtmlContentType(Response $response): bool
@@ -159,13 +135,13 @@ final class StopwatchInjectMiddleware
         return strtolower(trim($value)) === 'true';
     }
 
-    private function modeAllows(string $mode, Request $request): bool
+    private function modeAllows(InjectMode $mode, Request $request): bool
     {
         return match ($mode) {
-            'all' => true,
-            'route' => $this->routeHasAlias($request),
-            'attribute' => $this->routeHasAttribute($request) || $this->routeHasAlias($request),
-            default => false,
+            InjectMode::All => true,
+            InjectMode::Route => $this->routeHasAlias($request),
+            InjectMode::Attribute => $this->routeHasAttribute($request) || $this->routeHasAlias($request),
+            InjectMode::Off => false,
         };
     }
 

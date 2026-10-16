@@ -5,6 +5,7 @@ namespace SanderMuller\Stopwatch\Tests\Inject;
 use Illuminate\Contracts\Http\Kernel as HttpKernelContract;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SanderMuller\Stopwatch\StopwatchInjectMiddleware;
 use SanderMuller\Stopwatch\StopwatchMiddleware;
 use SanderMuller\Stopwatch\Tests\TestCase;
@@ -49,6 +50,25 @@ final class AutoRegisterMiddlewareTest extends TestCase
             [StopwatchInjectMiddleware::class, StopwatchMiddleware::autoStart()],
             $this->autoRegistered(),
         );
+    }
+
+    /** @return iterable<string, array{mixed}> */
+    public static function invalidModes(): iterable
+    {
+        // env() turns STOPWATCH_INJECT=false, =null and =true into PHP values.
+        yield 'false' => [false];
+        yield 'null' => [null];
+        yield 'true' => [true];
+        yield 'misspelled' => ['routes'];
+    }
+
+    #[DataProvider('invalidModes')]
+    public function test_nothing_is_registered_for_an_invalid_mode(mixed $mode): void
+    {
+        $this->injectConfig = ['mode' => $mode, 'allowed_environments' => 'testing'];
+        $this->refreshApplication();
+
+        self::assertSame([], $this->autoRegistered());
     }
 
     public function test_nothing_is_registered_outside_the_allowed_environments(): void

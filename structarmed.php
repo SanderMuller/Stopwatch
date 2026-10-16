@@ -34,6 +34,7 @@ return Architecture::define()
     ->layer('Inject', [
         'src/InjectEnvironmentGate.php',
         'src/InjectMiddlewareRegistrar.php',
+        'src/InjectMode.php',
         'src/InjectSettings.php',
         'src/ProfileViaStopwatch.php',
         'src/StopwatchInjectAlias.php',

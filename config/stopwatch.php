@@ -297,6 +297,7 @@ return [
     |   attribute - inject when the resolved controller class or method
     |               carries `#[ProfileViaStopwatch]`. Closure routes can opt
     |               in by also adding the `stopwatch.inject` alias.
+    |   Any other value, `false`, `null` and `true` included, counts as `off`.
     |
     | allowed_environments:
     |   CSV (e.g. `local,docker`) of environments where injection may run.
@@ -306,9 +307,9 @@ return [
     | auto_register:
     |   When true (the default), the service provider prepends
     |   `StopwatchInjectMiddleware` and `StopwatchMiddleware::autoStart()` to
-    |   the global middleware stack when `mode` is not `off`, the environment
-    |   is on the allow-list above, and the app is not on Octane. The env var
-    |   alone is then enough. Autostart also finishes every web request,
+    |   the global middleware stack when `mode` is `all`, `route` or
+    |   `attribute`, the environment is on the allow-list above, and the app
+    |   is not on Octane. The env var alone is then enough. Autostart also finishes every web request,
     |   which emits a `Server-Timing` header and feeds the run log and
     |   notifications. Set it to false to register the middleware by hand.
     |

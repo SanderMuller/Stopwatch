@@ -20,11 +20,16 @@ final readonly class InjectSettings
             return false;
         }
 
-        if (config('stopwatch.inject.mode', 'off') === 'off') {
+        if (self::mode() === InjectMode::Off) {
             return false;
         }
 
         return InjectEnvironmentGate::allows(config('stopwatch.inject.allowed_environments', 'local'));
+    }
+
+    public static function mode(): InjectMode
+    {
+        return InjectMode::fromConfig(config('stopwatch.inject.mode', 'off'));
     }
 
     /**

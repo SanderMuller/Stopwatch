@@ -18,7 +18,7 @@ STOPWATCH_INJECT_TRACK=true               # track queries, memory and HTTP while
 
 Clear the config cache afterwards if the app caches it.
 
-The service provider prepends the two middleware for you, `StopwatchInjectMiddleware` outer and `StopwatchMiddleware::autoStart()` inner, once the mode is not `off`, `APP_ENV` is on the allow-list, and the app is not on Octane. A plain install leaves the pipeline untouched.
+The service provider prepends the two middleware for you, `StopwatchInjectMiddleware` outer and `StopwatchMiddleware::autoStart()` inner, once the mode is `all`, `route` or `attribute`, `APP_ENV` is on the allow-list, and the app is not on Octane. A plain install leaves the pipeline untouched.
 
 An active toolbar also turns query, memory and HTTP [tracking](05-tracking.md) on, whatever `STOPWATCH_TRACK_QUERIES`, `STOPWATCH_TRACK_MEMORY` and `STOPWATCH_TRACK_HTTP` say. Without it the query, HTTP and memory columns render as dashes. Set `STOPWATCH_INJECT_TRACK=false` to leave those settings alone.
 
@@ -76,7 +76,7 @@ The mode picks which responses the injector touches. It does not narrow autostar
 <details>
 <summary>No toolbar? Check these first</summary>
 
-1. `STOPWATCH_INJECT` is not `off`, and `STOPWATCH_ENABLED` is not `false`.
+1. `STOPWATCH_INJECT` is `all`, `route` or `attribute`, and `STOPWATCH_ENABLED` is not `false`.
 2. `APP_ENV` is in `STOPWATCH_INJECT_ENVIRONMENTS`.
 3. The config cache is cleared.
 4. With `STOPWATCH_INJECT_AUTO_REGISTER=false`, both middleware are registered, in the order above.

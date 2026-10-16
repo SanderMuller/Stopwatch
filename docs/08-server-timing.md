@@ -17,7 +17,7 @@ It is passive: the header appears only when the stopwatch was started somewhere 
 $middleware->append(StopwatchMiddleware::autoStart());
 ```
 
-The [toolbar](07-profiler-toolbar.md) registers `autoStart()` for you when `STOPWATCH_INJECT` is not `off`, so the header appears on its own in that case. A manual `append()` next to it is harmless: the kernel de-duplicates the entry.
+The [toolbar](07-profiler-toolbar.md) registers `autoStart()` for you when `STOPWATCH_INJECT` is `all`, `route` or `attribute`, so the header appears on its own in that case. A manual `append()` next to it is harmless: the kernel de-duplicates the entry.
 
 Or set the header yourself:
 
