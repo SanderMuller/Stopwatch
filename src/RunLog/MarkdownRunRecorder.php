@@ -135,7 +135,7 @@ final readonly class MarkdownRunRecorder implements RunRecorder
         ?Throwable $exception,
         array $capturedContext,
     ): string {
-        $frontmatterValues = $this->frontmatterValues($id, $totals, $runContext, $exception);
+        $frontmatterValues = $this->frontmatterValues($id, $totals, $runContext, $exception, $this->threw($stopwatch, $runContext));
         $frontmatter = Frontmatter::format($frontmatterValues, $capturedContext['frontmatter_lines']);
 
         $body = $stopwatch->toMarkdown();
@@ -159,7 +159,7 @@ final readonly class MarkdownRunRecorder implements RunRecorder
      * @param array<string, scalar|null> $runContext
      * @return array<string, scalar|null>
      */
-    private function frontmatterValues(string $id, array $totals, array $runContext, ?Throwable $exception): array
+    private function frontmatterValues(string $id, array $totals, array $runContext, ?Throwable $exception, bool $threw): array
     {
         $values = [
             'id' => $id,
@@ -180,7 +180,7 @@ final readonly class MarkdownRunRecorder implements RunRecorder
             'exceeds_slow_threshold' => $totals['exceeds_slow_threshold'],
         ];
 
-        if (($runContext['threw'] ?? null) === true) {
+        if ($threw) {
             $values['threw'] = true;
         }
 
@@ -191,6 +191,20 @@ final readonly class MarkdownRunRecorder implements RunRecorder
         }
 
         return $values;
+    }
+
+    /**
+     * A captured exception marks the run as threw on its own, so a run captured the
+     * documented way (exception only, no `threw` run context) still lists under
+     * `--threw`. Read from the bag directly: `collectExceptions` gates the exception
+     * detail, not the flag.
+     *
+     * @param array<string, scalar|null> $runContext
+     */
+    private function threw(Stopwatch $stopwatch, array $runContext): bool
+    {
+        return ($runContext['threw'] ?? null) === true
+            || $stopwatch->transientContext(Stopwatch::TRANSIENT_EXCEPTION) instanceof Throwable;
     }
 
     private function reportFailure(Throwable $e): void

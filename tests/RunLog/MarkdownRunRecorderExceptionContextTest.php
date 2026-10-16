@@ -57,6 +57,30 @@ final class MarkdownRunRecorderExceptionContextTest extends TestCase
         self::assertStringContainsString('- **Message:** boom', $contents);
     }
 
+    public function test_captured_exception_alone_marks_run_as_threw(): void
+    {
+        $stopwatch = $this->makeStopwatch();
+        $stopwatch->recordRunsTo($this->makeRecorder());
+        $stopwatch->checkpoint('Before crash');
+        $stopwatch->withTransientContext(Stopwatch::TRANSIENT_EXCEPTION, new RuntimeException('boom'));
+        $stopwatch->finish();
+
+        self::assertStringContainsString('threw: true', $this->onlyFile());
+    }
+
+    public function test_captured_exception_marks_run_as_threw_when_collect_exceptions_disabled(): void
+    {
+        $stopwatch = $this->makeStopwatch();
+        $stopwatch->recordRunsTo($this->makeRecorder(collectExceptions: false));
+        $stopwatch->checkpoint('Before crash');
+        $stopwatch->withTransientContext(Stopwatch::TRANSIENT_EXCEPTION, new RuntimeException('boom'));
+        $stopwatch->finish();
+
+        $contents = $this->onlyFile();
+        self::assertStringContainsString('threw: true', $contents);
+        self::assertStringNotContainsString('exception_class', $contents);
+    }
+
     public function test_no_exception_fields_when_nothing_captured(): void
     {
         $stopwatch = $this->makeStopwatch();
@@ -67,6 +91,7 @@ final class MarkdownRunRecorderExceptionContextTest extends TestCase
         $contents = $this->onlyFile();
         self::assertStringNotContainsString('exception_class', $contents);
         self::assertStringNotContainsString('## Exception', $contents);
+        self::assertStringNotContainsString('threw', $contents);
     }
 
     public function test_collect_exceptions_disabled_skips_section_even_when_transient_set(): void
