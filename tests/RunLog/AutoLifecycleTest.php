@@ -152,6 +152,26 @@ final class AutoLifecycleTest extends TestCase
         self::assertStringContainsString('inside deferred job', $this->body($jobRuns[0]['id']));
     }
 
+    public function test_a_deferred_sync_job_after_an_empty_one_still_owns_a_new_run(): void
+    {
+        $stopwatch = $this->app->make(Stopwatch::class);
+        $stopwatch->checkpoint('request');
+        $stopwatch->finish();
+
+        $empty = new SyncJob($this->app, (string) json_encode(['displayName' => 'App\\Jobs\\Empty', 'job' => 'x', 'data' => []]), 'deferred', 'default');
+        event(new JobProcessing('deferred', $empty));
+        event(new JobProcessed('deferred', $empty));
+
+        $next = new SyncJob($this->app, (string) json_encode(['displayName' => 'App\\Jobs\\Next', 'job' => 'x', 'data' => []]), 'deferred', 'default');
+        event(new JobProcessing('deferred', $next));
+        $stopwatch->checkpoint('inside next job');
+        event(new JobProcessed('deferred', $next));
+
+        $jobRuns = array_values(array_filter($this->runs(), static fn (array $run): bool => $run['frontmatter']['job'] === 'App\\Jobs\\Next'));
+        self::assertCount(1, $jobRuns);
+        self::assertStringContainsString('inside next job', $this->body($jobRuns[0]['id']));
+    }
+
     public function test_a_queued_job_becomes_its_own_run(): void
     {
         $job = $this->queuedJob('App\\Jobs\\Remote');
@@ -258,6 +278,7 @@ final class AutoLifecycleTest extends TestCase
         $this->artisan('stopwatch-probe:empty')->assertSuccessful();
 
         self::assertSame([], $this->runs());
+        self::assertFalse($this->app->make(Stopwatch::class)->started(), 'the dropped run must not leave an active run behind');
     }
 
     public function test_a_failed_job_without_checkpoints_still_records_the_exception(): void

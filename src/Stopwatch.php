@@ -199,12 +199,46 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
             $this->notifyRunEnd(RunEndReason::Restarted);
         }
 
-        $this->runId = null;
-
-        $this->checkpoints = StopwatchCheckpointCollection::empty();
+        $this->clearRunState();
 
         $this->startTime = $this->clock->now();
         $this->startHrtime = $this->clock->hrtime();
+
+        if ($this->trackingMemory) {
+            $this->lastMemoryUsage = memory_get_usage();
+            $this->runStartMemory = $this->lastMemoryUsage;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Drops the active run without recording it and without starting a new one,
+     * so {@see started()} is false again, as before the first start. Listeners are
+     * not notified, so it suits a run without checkpoints: a listener that heard a
+     * checkpoint gets no end for that run.
+     *
+     * @internal Auto lifecycle drops runs that reached no checkpoint.
+     */
+    public function discard(): self
+    {
+        if (! $this->enabled) {
+            return $this;
+        }
+
+        $this->clearRunState();
+
+        $this->startTime = null;
+        $this->startHrtime = null;
+
+        return $this;
+    }
+
+    private function clearRunState(): void
+    {
+        $this->runId = null;
+
+        $this->checkpoints = StopwatchCheckpointCollection::empty();
 
         $this->endTime = null;
         $this->endHrtime = null;
@@ -230,13 +264,6 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
         $this->runContext = [];
         $this->transientContext = [];
-
-        if ($this->trackingMemory) {
-            $this->lastMemoryUsage = memory_get_usage();
-            $this->runStartMemory = $this->lastMemoryUsage;
-        }
-
-        return $this;
     }
 
     public function startTime(): ?CarbonImmutable

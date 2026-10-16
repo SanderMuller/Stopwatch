@@ -136,6 +136,42 @@ final class CoreRunTest extends TestCase
         );
     }
 
+    public function test_discard_drops_the_run_silently_and_leaves_the_stopwatch_idle(): void
+    {
+        $listener = new class implements CheckpointListener {
+            /** @var list<string> */
+            public array $events = [];
+
+            public function onCheckpoint(Stopwatch $stopwatch, StopwatchCheckpoint $checkpoint): void
+            {
+                $this->events[] = 'checkpoint:' . $checkpoint->label;
+            }
+
+            public function onRunEnd(Stopwatch $stopwatch, RunEndReason $reason): void
+            {
+                $this->events[] = 'end:' . $reason->value;
+            }
+        };
+
+        $stopwatch = Stopwatch::new(clock: new FakeClock());
+        $stopwatch->addCheckpointListener($listener);
+
+        $stopwatch->start();
+        $stopwatch->checkpoint('A');
+        $stopwatch->discard();
+
+        self::assertFalse($stopwatch->started());
+        self::assertFalse($stopwatch->ended());
+        self::assertNull($stopwatch->runId());
+        self::assertSame([], $stopwatch->checkpoints());
+
+        $stopwatch->start();
+        $stopwatch->checkpoint('B');
+        $stopwatch->finish();
+
+        self::assertSame(['checkpoint:A', 'checkpoint:B', 'end:finished'], $listener->events);
+    }
+
     public function test_a_throwing_listener_cannot_break_the_run(): void
     {
         Log::spy();

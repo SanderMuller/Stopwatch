@@ -134,7 +134,7 @@ final class AutoLifecycle
         $stopwatch = $this->stopwatch();
 
         if ($stopwatch->checkpoints() === []) {
-            $stopwatch->reset();
+            $stopwatch->discard();
 
             return;
         }
