@@ -43,8 +43,6 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
 
     private ?int $lastCheckpointHrtime = null;
 
-    private ?float $timeSinceLastCheckpointMs = null;
-
     private StopwatchCheckpointCollection $checkpoints;
 
     private int $slowCheckpointThresholdMs = 50;
@@ -244,7 +242,6 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $this->endHrtime = null;
 
         $this->lastCheckpointHrtime = null;
-        $this->timeSinceLastCheckpointMs = null;
 
         $this->queryCount = 0;
         $this->queryDurationMs = 0;
@@ -356,7 +353,6 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         $timeSinceLastCheckpointMs = ($nowHrtime - ($this->lastCheckpointHrtime ?? $startHrtime)) / 1_000_000;
         $timeSinceStopwatchStartMs = ($nowHrtime - $startHrtime) / 1_000_000;
 
-        $this->timeSinceLastCheckpointMs = $timeSinceLastCheckpointMs;
         $this->lastCheckpointHrtime = $nowHrtime;
 
         [$queryMetrics, $memoryMetrics, $httpMetrics] = $this->trackedMetrics();
@@ -465,19 +461,15 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         }
     }
 
+    /**
+     * The interval that led up to the last checkpoint, which stays fixed once that
+     * checkpoint is recorded. Before the first checkpoint, the run duration so far.
+     * For the time spent after the last checkpoint, use {@see timeSinceLastCheckpointReadable()}.
+     */
     public function timeSinceLastCheckpoint(): CarbonInterval
     {
-        if ($this->timeSinceLastCheckpointMs !== null) {
-            return CarbonInterval::milliseconds($this->timeSinceLastCheckpointMs)->cascade();
-        }
-
-        if ($this->startHrtime === null) {
-            return CarbonInterval::milliseconds(0)->cascade();
-        }
-
-        $ms = ($this->clock->hrtime() - $this->startHrtime) / 1_000_000;
-
-        return CarbonInterval::milliseconds($ms)->cascade();
+        // A copy: CarbonInterval is mutable, and the checkpoint's own value must not change.
+        return $this->checkpoints->lastCheckpoint()?->timeSinceLastCheckpoint->copy() ?? $this->totalRunDuration();
     }
 
     /**
@@ -1054,6 +1046,11 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
         return round($ms, 1) . 'ms';
     }
 
+    /**
+     * The time spent after the last checkpoint, up to now or to the end of the run.
+     * Before the first checkpoint, the run duration so far. This is a different
+     * interval from {@see timeSinceLastCheckpoint()}.
+     */
     public function timeSinceLastCheckpointReadable(): string
     {
         if ($this->lastCheckpointHrtime === null) {
