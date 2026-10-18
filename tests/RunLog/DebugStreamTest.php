@@ -105,6 +105,28 @@ final class DebugStreamTest extends TestCase
         self::assertSame(2, $records[5]['dropped']);
     }
 
+    public function test_each_record_kind_keeps_its_key_set(): void
+    {
+        // `stopwatch:runs:show` and the MCP show tool print these records as they are,
+        // so the keys and their order are a contract. A rename here must be deliberate.
+        config()->set('stopwatch.debug.max_records', 1);
+
+        stopwatch()->probe('kept');
+        stopwatch()->probe('dropped');
+        $runId = (string) stopwatch()->runId();
+        stopwatch()->finish();
+
+        self::assertSame(
+            [
+                ['type', 'run', 'at', 'url', 'method', 'command', 'job'],
+                ['type', 'i', 'label', 'probe', 'location', 'delta_ms', 'total_ms', 'metadata', 'queries', 'query_ms', 'http', 'http_ms', 'memory_delta'],
+                ['type', 'after'],
+                ['type', 'reason', 'duration_ms', 'checkpoints', 'dropped'],
+            ],
+            array_map(array_keys(...), $this->records($runId)),
+        );
+    }
+
     public function test_unencodable_metadata_keeps_the_checkpoint_record(): void
     {
         stopwatch()->probe('Bad values', ['name' => "\xB1abc", 'ok' => 1, 'handle' => fopen('php://memory', 'rb')]);
