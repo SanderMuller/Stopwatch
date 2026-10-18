@@ -2,7 +2,6 @@
 
 namespace SanderMuller\Stopwatch\RunLog;
 
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use SanderMuller\Stopwatch\Stopwatch;
 use Throwable;
@@ -135,7 +134,7 @@ final readonly class MarkdownRunRecorder implements RunRecorder
         ?Throwable $exception,
         array $capturedContext,
     ): string {
-        $frontmatterValues = $this->frontmatterValues($id, $totals, $runContext, $exception, $this->threw($stopwatch, $runContext));
+        $frontmatterValues = $this->frontmatterValues($id, $stopwatch, $totals, $runContext, $exception);
         $frontmatter = Frontmatter::format($frontmatterValues, $capturedContext['frontmatter_lines']);
 
         $body = $stopwatch->toMarkdown();
@@ -159,11 +158,12 @@ final readonly class MarkdownRunRecorder implements RunRecorder
      * @param array<string, scalar|null> $runContext
      * @return array<string, scalar|null>
      */
-    private function frontmatterValues(string $id, array $totals, array $runContext, ?Throwable $exception, bool $threw): array
+    private function frontmatterValues(string $id, Stopwatch $stopwatch, array $totals, array $runContext, ?Throwable $exception): array
     {
         $values = [
             'id' => $id,
-            'recorded_at' => CarbonImmutable::now()->format('Y-m-d\TH:i:s.vP'),
+            // The run's start, as the debug stream's start record has it, so both summaries agree.
+            'recorded_at' => $stopwatch->startTime()?->format('Y-m-d\TH:i:s.vP'),
             'duration_ms' => round($totals['duration_ms'], 3),
             'checkpoints' => $totals['checkpoints'],
             'url' => $runContext['url'] ?? null,
@@ -180,7 +180,7 @@ final readonly class MarkdownRunRecorder implements RunRecorder
             'exceeds_slow_threshold' => $totals['exceeds_slow_threshold'],
         ];
 
-        if ($threw) {
+        if ($this->threw($stopwatch, $runContext)) {
             $values['threw'] = true;
         }
 

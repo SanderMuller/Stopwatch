@@ -61,6 +61,22 @@ final class MarkdownRunRecorderTest extends TestCase
         self::assertSame([], glob($this->tempDir . '/*.md') ?: []);
     }
 
+    public function test_recorded_at_is_the_run_start_on_the_stopwatch_clock(): void
+    {
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock)->start();
+        $clock->advance(5_000);
+        $stopwatch->checkpoint('Late');
+        $stopwatch->finish();
+
+        $this->makeRecorder(minDurationMs: null)->record($stopwatch, []);
+
+        $files = glob($this->tempDir . '/*.md') ?: [];
+        self::assertCount(1, $files);
+        // The debug stream's summary reads the same moment from its start record.
+        self::assertStringContainsString("recorded_at: 2026-01-15T10:30:00.000+00:00\n", (string) file_get_contents($files[0]));
+    }
+
     public function test_writes_run_with_frontmatter_and_markdown_body(): void
     {
         $stopwatch = Stopwatch::new(clock: new FakeClock())->start();
