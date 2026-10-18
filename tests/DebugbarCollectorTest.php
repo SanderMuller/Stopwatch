@@ -2,6 +2,8 @@
 
 namespace SanderMuller\Stopwatch\Tests;
 
+use Carbon\CarbonImmutable;
+use SanderMuller\Stopwatch\Clock;
 use SanderMuller\Stopwatch\FakeClock;
 use SanderMuller\Stopwatch\Integrations\DebugbarCollector;
 use SanderMuller\Stopwatch\Stopwatch;
@@ -58,6 +60,45 @@ final class DebugbarCollectorTest extends TestCase
         self::assertEquals(0.04, $second['relative_end']);
         self::assertEquals(0.03, $second['duration']);
         self::assertSame('30ms', $second['duration_str']);
+    }
+
+    public function test_collect_keeps_sub_millisecond_durations(): void
+    {
+        $clock = new class implements Clock {
+            public int $nanos = 0;
+
+            public function hrtime(): int
+            {
+                return $this->nanos;
+            }
+
+            public function now(): CarbonImmutable
+            {
+                return CarbonImmutable::parse('2026-01-15 10:30:00');
+            }
+        };
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->start();
+        $clock->nanos = 400_000;
+        $stopwatch->checkpoint('Quick');
+
+        $data = (new DebugbarCollector($stopwatch))->collect();
+
+        self::assertEqualsWithDelta(0.0004, $data['measures'][0]['duration'], 1e-9);
+        self::assertEqualsWithDelta(0.0004, $data['measures'][0]['relative_end'], 1e-9);
+        self::assertEqualsWithDelta(0.0004, $data['duration'], 1e-9);
+    }
+
+    public function test_collect_finishes_a_running_stopwatch(): void
+    {
+        $clock = new FakeClock();
+        $stopwatch = Stopwatch::new(clock: $clock);
+        $stopwatch->start();
+        $stopwatch->checkpoint('Running');
+
+        (new DebugbarCollector($stopwatch))->collect();
+
+        self::assertTrue($stopwatch->ended());
     }
 
     public function test_collect_uses_stopwatch_start_time_for_anchoring(): void

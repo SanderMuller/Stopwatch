@@ -8,9 +8,6 @@ use DebugBar\DataCollector\Renderable;
 use SanderMuller\Stopwatch\Stopwatch;
 use SanderMuller\Stopwatch\StopwatchCheckpoint;
 
-/**
- * @phpstan-type Checkpoint array{label: string, timeSinceLastCheckpointMs: int, timeSinceLastCheckpointFormatted: string, totalTimeElapsedMs: int, metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null, httpCount: int|null, httpTimeMs: float|null}
- */
 final class DebugbarCollector extends DataCollector implements Renderable
 {
     public const string NAME = 'stopwatch';
@@ -45,23 +42,24 @@ final class DebugbarCollector extends DataCollector implements Renderable
      */
     public function collect(): array
     {
-        $data = $this->stopwatch->toArray();
+        // Debugbar collects after the response, so the timeline shows the finished run.
+        $this->stopwatch->finish();
 
         $requestStart = $this->resolveRequestStart();
-        $totalSeconds = $data['totalRunDurationMs'] / 1000;
+        $totalMs = $this->stopwatch->totalRunDuration()->totalMilliseconds;
+        $totalSeconds = $totalMs / 1000;
 
         $measures = [];
 
-        /** @var array{label: string, timeSinceLastCheckpointMs: int, timeSinceLastCheckpointFormatted: string, totalTimeElapsedMs: int, metadata: array<array-key, mixed>|null, queryCount: int|null, queryTimeMs: float|null, memoryDelta: int|null, httpCount: int|null, httpTimeMs: float|null} $checkpoint */
-        foreach ($data['checkpoints'] as $checkpoint) {
-            $measures[] = $this->buildMeasure($checkpoint, $requestStart);
+        foreach ($this->stopwatch->checkpoints() as $stopwatchCheckpoint) {
+            $measures[] = $this->buildMeasure($stopwatchCheckpoint, $requestStart);
         }
 
         return [
             'start' => $requestStart,
             'end' => $requestStart + $totalSeconds,
             'duration' => $totalSeconds,
-            'duration_str' => $data['totalRunDuration'],
+            'duration_str' => round($totalMs, 1) . 'ms',
             'measures' => $measures,
         ];
     }
@@ -86,52 +84,52 @@ final class DebugbarCollector extends DataCollector implements Renderable
     }
 
     /**
-     * @param Checkpoint $checkpoint
      * @return array{label: string, start: float, relative_start: float, end: float, relative_end: float, duration: float, duration_str: string, params: array<string, mixed>, collector: null}
      */
-    private function buildMeasure(array $checkpoint, float $requestStart): array
+    private function buildMeasure(StopwatchCheckpoint $checkpoint, float $requestStart): array
     {
-        $endSeconds = $checkpoint['totalTimeElapsedMs'] / 1000;
-        $startSeconds = ($checkpoint['totalTimeElapsedMs'] - $checkpoint['timeSinceLastCheckpointMs']) / 1000;
-        $durationSeconds = $checkpoint['timeSinceLastCheckpointMs'] / 1000;
+        $endMs = $checkpoint->timeSinceStopwatchStart->totalMilliseconds;
+        $durationMs = $checkpoint->timeSinceLastCheckpoint->totalMilliseconds;
+        $endSeconds = $endMs / 1000;
+        $startSeconds = ($endMs - $durationMs) / 1000;
+        $durationSeconds = $durationMs / 1000;
 
         return [
-            'label' => $checkpoint['label'],
+            'label' => $checkpoint->label,
             'start' => $requestStart + $startSeconds,
             'relative_start' => $startSeconds,
             'end' => $requestStart + $endSeconds,
             'relative_end' => $endSeconds,
             'duration' => $durationSeconds,
-            'duration_str' => $checkpoint['timeSinceLastCheckpointFormatted'],
+            'duration_str' => $checkpoint->timeSinceLastCheckpointFormatted,
             'params' => $this->buildParams($checkpoint),
             'collector' => null,
         ];
     }
 
     /**
-     * @param Checkpoint $checkpoint
      * @return array<string, mixed>
      */
-    private function buildParams(array $checkpoint): array
+    private function buildParams(StopwatchCheckpoint $checkpoint): array
     {
         $params = [];
 
-        if ($checkpoint['metadata'] !== null) {
-            foreach ($checkpoint['metadata'] as $key => $value) {
+        if ($checkpoint->metadata !== null) {
+            foreach ($checkpoint->metadata as $key => $value) {
                 $params[(string) $key] = StopwatchCheckpoint::formatMetadataValue($value, StopwatchCheckpoint::METADATA_DISPLAY_MAX_CHARS);
             }
         }
 
-        if ($checkpoint['queryCount'] !== null) {
-            $params['queries'] = "{$checkpoint['queryCount']}q / {$checkpoint['queryTimeMs']}ms";
+        if ($checkpoint->queryCount !== null) {
+            $params['queries'] = "{$checkpoint->queryCount}q / {$checkpoint->queryTimeMs}ms";
         }
 
-        if ($checkpoint['httpCount'] !== null) {
-            $params['http'] = "{$checkpoint['httpCount']}h / {$checkpoint['httpTimeMs']}ms";
+        if ($checkpoint->httpCount !== null) {
+            $params['http'] = "{$checkpoint->httpCount}h / {$checkpoint->httpTimeMs}ms";
         }
 
-        if ($checkpoint['memoryDelta'] !== null) {
-            $params['memory'] = StopwatchCheckpoint::formatMemoryDelta($checkpoint['memoryDelta']);
+        if ($checkpoint->memoryDelta !== null) {
+            $params['memory'] = StopwatchCheckpoint::formatMemoryDelta($checkpoint->memoryDelta);
         }
 
         return $params;
