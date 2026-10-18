@@ -66,6 +66,17 @@ final class ReadPathTest extends TestCase
         self::assertSame('finished', $rows[0]['state']);
     }
 
+    public function test_a_markdown_file_without_frontmatter_falls_back_to_its_stream(): void
+    {
+        $this->app->make(RunLogStore::class)->write(self::OLD, "# Stopwatch profile\n");
+        $this->streamRun(self::OLD, end: 'shutdown');
+
+        $rows = (array) json_decode($this->runCommand('stopwatch:runs:list', ['--format' => 'json']), true);
+
+        self::assertCount(1, $rows);
+        self::assertSame('shutdown', $rows[0]['state']);
+    }
+
     public function test_show_latest_picks_the_newest_run_across_both_extensions(): void
     {
         $this->markdownRun(self::OLD);

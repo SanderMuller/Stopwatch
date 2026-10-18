@@ -49,25 +49,13 @@ final readonly class RunLogReader
      */
     private function collectFrontmatter(): array
     {
-        $rows = $this->markdownRows();
-        $markdownIds = array_fill_keys(array_column($rows, 'id'), true);
-
-        return [...$rows, ...$this->streamOnlyRows($markdownIds)];
-    }
-
-    /**
-     * @return list<RunSummary>
-     */
-    private function markdownRows(): array
-    {
         $rows = [];
 
-        foreach ($this->files('md') as $file) {
-            $head = $this->readHead($file);
-            $frontmatter = $head === null ? [] : Frontmatter::parse($head);
+        foreach ((new RunFiles($this->path))->all() as $id => $files) {
+            $row = $this->summary((string) $id, $files);
 
-            if ($frontmatter !== []) {
-                $rows[] = ['id' => pathinfo($file, PATHINFO_FILENAME), 'frontmatter' => $frontmatter, 'state' => 'finished'];
+            if ($row !== null) {
+                $rows[] = $row;
             }
         }
 
@@ -75,36 +63,38 @@ final readonly class RunLogReader
     }
 
     /**
-     * @param array<string, true> $markdownIds
-     * @return list<RunSummary>
+     * The markdown file wins when its frontmatter parses; otherwise the stream, if any.
+     *
+     * @param non-empty-list<string> $files
+     * @return RunSummary|null
      */
-    private function streamOnlyRows(array $markdownIds): array
+    private function summary(string $id, array $files): ?array
     {
-        $rows = [];
+        $markdown = $this->fileWithExtension($files, 'md');
+        $head = $markdown === null ? null : $this->readHead($markdown);
+        $frontmatter = $head === null ? [] : Frontmatter::parse($head);
 
-        foreach ($this->files('jsonl') as $file) {
-            $id = pathinfo($file, PATHINFO_FILENAME);
-
-            if (! isset($markdownIds[$id])) {
-                $rows[] = StreamFile::summary($id, $file);
-            }
+        if ($frontmatter !== []) {
+            return ['id' => $id, 'frontmatter' => $frontmatter, 'state' => 'finished'];
         }
 
-        return $rows;
+        $stream = $this->fileWithExtension($files, 'jsonl');
+
+        return $stream === null ? null : StreamFile::summary($id, $stream);
     }
 
     /**
-     * @return list<string>
+     * @param non-empty-list<string> $files
      */
-    private function files(string $extension): array
+    private function fileWithExtension(array $files, string $extension): ?string
     {
-        if (! is_dir($this->path)) {
-            return [];
+        foreach ($files as $file) {
+            if (pathinfo($file, PATHINFO_EXTENSION) === $extension) {
+                return $file;
+            }
         }
 
-        $files = glob($this->path . '/*.' . $extension);
-
-        return $files === false ? [] : $files;
+        return null;
     }
 
     private function readHead(string $file): ?string
