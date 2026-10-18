@@ -2,6 +2,7 @@
 
 namespace SanderMuller\Stopwatch\Tests\RunLog;
 
+use Illuminate\Support\Facades\File;
 use RuntimeException;
 use SanderMuller\Stopwatch\RunLog\ContextCapture;
 use SanderMuller\Stopwatch\RunLog\ContextCaptureRenderer;
@@ -147,7 +148,7 @@ final class MiddlewareRunLogTest extends TestCase
             self::assertStringNotContainsString('protected:', $contents);
             self::assertStringNotContainsString('#trace', $contents);
         } finally {
-            $this->cleanupTempDir($tempDir);
+            File::deleteDirectory($tempDir);
         }
     }
 
@@ -189,19 +190,5 @@ final class MiddlewareRunLogTest extends TestCase
         $this->app->make(Stopwatch::class)->recordRunsTo($recorder);
 
         return static fn (): ?array => $recorder->captured;
-    }
-
-    private function cleanupTempDir(string $tempDir): void
-    {
-        if (! is_dir($tempDir)) {
-            return;
-        }
-
-        foreach (glob($tempDir . '/*') ?: [] as $file) {
-            @unlink($file);
-        }
-
-        @unlink($tempDir . '/.gitignore');
-        @rmdir($tempDir);
     }
 }

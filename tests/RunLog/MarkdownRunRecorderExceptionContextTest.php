@@ -3,6 +3,7 @@
 namespace SanderMuller\Stopwatch\Tests\RunLog;
 
 use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\File;
 use RuntimeException;
 use SanderMuller\Stopwatch\FakeClock;
 use SanderMuller\Stopwatch\RunLog\ContextCapture;
@@ -37,7 +38,7 @@ final class MarkdownRunRecorderExceptionContextTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeTempDir();
+        File::deleteDirectory($this->tempDir);
 
         parent::tearDown();
     }
@@ -289,21 +290,5 @@ final class MarkdownRunRecorderExceptionContextTest extends TestCase
         self::assertCount(1, $files, 'expected exactly one run-log file');
 
         return (string) file_get_contents($files[0]);
-    }
-
-    private function removeTempDir(): void
-    {
-        if (! is_dir($this->tempDir)) {
-            return;
-        }
-
-        $files = glob($this->tempDir . '/*') ?: [];
-
-        foreach ($files as $file) {
-            @unlink($file);
-        }
-
-        @unlink($this->tempDir . '/.gitignore');
-        @rmdir($this->tempDir);
     }
 }

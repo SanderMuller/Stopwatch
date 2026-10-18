@@ -2,6 +2,7 @@
 
 namespace SanderMuller\Stopwatch\Tests;
 
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
@@ -61,11 +62,15 @@ final class CoreRunTest extends TestCase
         $stopwatch = Stopwatch::new(clock: new FakeClock());
         $stopwatch->recordRunsTo(new MarkdownRunRecorder($store, minDurationMs: null));
 
-        $stopwatch->checkpoint('Step');
-        $runId = $stopwatch->runId();
-        $stopwatch->finish();
+        try {
+            $stopwatch->checkpoint('Step');
+            $runId = $stopwatch->runId();
+            $stopwatch->finish();
 
-        self::assertFileExists($dir . '/' . $runId . '.md');
+            self::assertFileExists($dir . '/' . $runId . '.md');
+        } finally {
+            File::deleteDirectory($dir);
+        }
     }
 
     public function test_probe_records_like_checkpoint_with_probe_flag(): void

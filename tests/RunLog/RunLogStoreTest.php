@@ -2,6 +2,7 @@
 
 namespace SanderMuller\Stopwatch\Tests\RunLog;
 
+use Illuminate\Support\Facades\File;
 use SanderMuller\Stopwatch\RunLog\RunLogStore;
 use SanderMuller\Stopwatch\Tests\TestCase;
 
@@ -21,7 +22,7 @@ final class RunLogStoreTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeTempDir();
+        File::deleteDirectory($this->tempDir);
 
         parent::tearDown();
     }
@@ -336,21 +337,5 @@ final class RunLogStoreTest extends TestCase
         }
 
         return $head . str_repeat('0', 16);
-    }
-
-    private function removeTempDir(): void
-    {
-        if (! is_dir($this->tempDir)) {
-            return;
-        }
-
-        $files = glob($this->tempDir . '/*') ?: [];
-
-        foreach ($files as $file) {
-            @unlink($file);
-        }
-
-        @unlink($this->tempDir . '/.gitignore');
-        @rmdir($this->tempDir);
     }
 }

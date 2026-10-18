@@ -4,6 +4,7 @@ namespace SanderMuller\Stopwatch\Tests\RunLog;
 
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\File;
 use SanderMuller\Stopwatch\RunLog\ConsoleCommandContextProvider;
 use SanderMuller\Stopwatch\RunLog\MarkdownRunRecorder;
 use SanderMuller\Stopwatch\RunLog\RunLogStore;
@@ -97,7 +98,7 @@ final class ServiceProviderRunLogTest extends TestCase
             self::assertStringNotContainsString('- **Message:** default boom', $contents, 'message=false default must hide the message');
             self::assertStringNotContainsString('## Context', $contents, 'collect_context=false default must skip the section');
         } finally {
-            $this->cleanupTempDir($tempDir);
+            File::deleteDirectory($tempDir);
         }
     }
 
@@ -130,7 +131,7 @@ final class ServiceProviderRunLogTest extends TestCase
             self::assertStringContainsString('## Context', $contents, 'collect_context=true override must enable the section');
             self::assertStringContainsString('| `trace_id` | visible-now |', $contents);
         } finally {
-            $this->cleanupTempDir($tempDir);
+            File::deleteDirectory($tempDir);
         }
     }
 
@@ -165,7 +166,7 @@ final class ServiceProviderRunLogTest extends TestCase
             // mask doesn't help here because secret is not in allow — so it never enters the body
             // either. The deny+mask test proves the array value reached the recorder.
         } finally {
-            $this->cleanupTempDir($tempDir);
+            File::deleteDirectory($tempDir);
         }
     }
 
@@ -202,19 +203,5 @@ final class ServiceProviderRunLogTest extends TestCase
         self::assertCount(1, $files, 'expected exactly one run-log file');
 
         return (string) file_get_contents($files[0]);
-    }
-
-    private function cleanupTempDir(string $tempDir): void
-    {
-        if (! is_dir($tempDir)) {
-            return;
-        }
-
-        foreach (glob($tempDir . '/*') ?: [] as $file) {
-            @unlink($file);
-        }
-
-        @unlink($tempDir . '/.gitignore');
-        @rmdir($tempDir);
     }
 }

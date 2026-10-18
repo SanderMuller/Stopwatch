@@ -3,6 +3,7 @@
 namespace SanderMuller\Stopwatch\Tests\RunLog;
 
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Support\Facades\File;
 use SanderMuller\Stopwatch\RunLog\RunLogStore;
 use SanderMuller\Stopwatch\Tests\TestCase;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -22,7 +23,7 @@ final class CommandsTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeTempDir();
+        File::deleteDirectory($this->tempDir);
 
         parent::tearDown();
     }
@@ -393,21 +394,5 @@ final class CommandsTest extends TestCase
         $lines[] = '---';
 
         return implode("\n", $lines) . "\n\n# Stopwatch profile\n\nbody contents\n";
-    }
-
-    private function removeTempDir(): void
-    {
-        if (! is_dir($this->tempDir)) {
-            return;
-        }
-
-        $files = glob($this->tempDir . '/*') ?: [];
-
-        foreach ($files as $file) {
-            @unlink($file);
-        }
-
-        @unlink($this->tempDir . '/.gitignore');
-        @rmdir($this->tempDir);
     }
 }

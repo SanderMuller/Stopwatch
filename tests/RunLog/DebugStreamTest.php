@@ -2,6 +2,7 @@
 
 namespace SanderMuller\Stopwatch\Tests\RunLog;
 
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -36,9 +37,10 @@ final class DebugStreamTest extends TestCase
 
     protected function tearDown(): void
     {
-        File::deleteDirectory($this->dir);
-
         parent::tearDown();
+
+        // After the app is gone: an unfinished run's shutdown record recreates the directory.
+        (new Filesystem())->deleteDirectory($this->dir);
     }
 
     public function test_stream_writes_start_checkpoint_and_end_records(): void

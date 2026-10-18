@@ -3,6 +3,7 @@
 namespace SanderMuller\Stopwatch\Tests\RunLog;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use SanderMuller\Stopwatch\FakeClock;
 use SanderMuller\Stopwatch\RunLog\MarkdownRunRecorder;
@@ -26,7 +27,7 @@ final class MarkdownRunRecorderTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeTempDir();
+        File::deleteDirectory($this->tempDir);
 
         parent::tearDown();
     }
@@ -258,21 +259,5 @@ final class MarkdownRunRecorderTest extends TestCase
             includeBindings: $includeBindings,
             skipEmpty: $skipEmpty,
         );
-    }
-
-    private function removeTempDir(): void
-    {
-        if (! is_dir($this->tempDir)) {
-            return;
-        }
-
-        $files = glob($this->tempDir . '/*') ?: [];
-
-        foreach ($files as $file) {
-            @unlink($file);
-        }
-
-        @unlink($this->tempDir . '/.gitignore');
-        @rmdir($this->tempDir);
     }
 }
