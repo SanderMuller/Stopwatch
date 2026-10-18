@@ -54,7 +54,7 @@ final class RunsListCommand extends Command
 
         $this->newLine();
         $this->table(
-            ['ID', 'Duration', 'URL / Command', 'Status', 'State', 'Recorded'],
+            ['ID', 'Duration', 'URL / Command', 'Status', 'State', 'Started'],
             array_map(fn (array $row): array => [
                 $row['id'],
                 $this->formatDuration($row['frontmatter']['duration_ms'] ?? null),
