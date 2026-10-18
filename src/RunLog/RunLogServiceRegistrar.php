@@ -67,7 +67,7 @@ final class RunLogServiceRegistrar
 
         return new MarkdownRunRecorder(
             store: $app->make(RunLogStore::class),
-            minDurationMs: $configReader->optionalInt('min_duration_ms'),
+            minDurationMs: $configReader->int('min_duration_ms', 50),
             maxFiles: $configReader->int('max_files', 200),
             maxAgeDays: $configReader->int('max_age_days', 7),
             detail: $configReader->string('detail', 'summary'),

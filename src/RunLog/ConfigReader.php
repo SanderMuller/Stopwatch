@@ -51,11 +51,6 @@ final readonly class ConfigReader
         return is_numeric($this->config[$key] ?? null) ? (int) $this->config[$key] : $default;
     }
 
-    public function optionalInt(string $key): ?int
-    {
-        return is_numeric($this->config[$key] ?? null) ? (int) $this->config[$key] : null;
-    }
-
     public function string(string $key, string $default): string
     {
         return is_string($this->config[$key] ?? null) ? $this->config[$key] : $default;

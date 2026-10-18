@@ -3,8 +3,10 @@
 namespace SanderMuller\Stopwatch\Tests\RunLog;
 
 use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\File;
+use PHPUnit\Framework\Attributes\DataProvider;
 use SanderMuller\Stopwatch\RunLog\ConsoleCommandContextProvider;
 use SanderMuller\Stopwatch\RunLog\MarkdownRunRecorder;
 use SanderMuller\Stopwatch\RunLog\RunLogStore;
@@ -48,6 +50,35 @@ final class ServiceProviderRunLogTest extends TestCase
         $store = $this->app->make(RunLogStore::class);
 
         self::assertSame($tempDir, $store->path());
+    }
+
+    /** @return iterable<string, array{bool}> */
+    public static function minDurationWithoutANumber(): iterable
+    {
+        yield 'key missing' => [true];
+        yield 'key null' => [false];
+    }
+
+    #[DataProvider('minDurationWithoutANumber')]
+    public function test_min_duration_without_a_number_keeps_the_50ms_default(bool $removeKey): void
+    {
+        $tempDir = $this->makeTempStore();
+        /** @var array<string, mixed> $runLog */
+        $runLog = config('stopwatch.run_log');
+        config()->set('stopwatch.run_log', $removeKey ? Arr::except($runLog, 'min_duration_ms') : ['min_duration_ms' => null] + $runLog);
+
+        try {
+            $stopwatch = $this->app->make(Stopwatch::class);
+            $stopwatch->recordRunsTo($this->app->make(MarkdownRunRecorder::class));
+
+            $stopwatch->start();
+            $stopwatch->checkpoint('Fast');
+            $stopwatch->finish();
+
+            self::assertSame([], glob($tempDir . '/*.md') ?: [], 'a run under 50ms must be skipped');
+        } finally {
+            File::deleteDirectory($tempDir);
+        }
     }
 
     public function test_command_starting_provider_yields_command_context(): void
