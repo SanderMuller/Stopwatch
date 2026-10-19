@@ -52,7 +52,6 @@ final class ReadPathTest extends TestCase
 
         $table = $this->runCommand('stopwatch:runs:list');
         self::assertStringContainsString('State', $table);
-        // recorded_at holds the run's start time, so the column says so.
         self::assertStringContainsString('Started', $table);
         self::assertStringNotContainsString('Recorded', $table);
         self::assertStringContainsString('unfinished', $table);

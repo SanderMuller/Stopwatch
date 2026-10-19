@@ -74,7 +74,6 @@ final class MarkdownRunRecorderTest extends TestCase
 
         $files = glob($this->tempDir . '/*.md') ?: [];
         self::assertCount(1, $files);
-        // The debug stream's summary reads the same moment from its start record.
         self::assertStringContainsString("recorded_at: 2026-01-15T10:30:00.000+00:00\n", (string) file_get_contents($files[0]));
     }
 

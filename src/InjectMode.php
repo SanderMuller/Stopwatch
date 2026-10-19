@@ -3,9 +3,6 @@
 namespace SanderMuller\Stopwatch;
 
 /**
- * The `stopwatch.inject.mode` setting. A value that is not one of the cases,
- * such as `false`, `null`, `true` or a misspelling, reads as {@see self::Off}.
- *
  * @internal
  */
 enum InjectMode: string

@@ -107,8 +107,8 @@ final class DebugStreamTest extends TestCase
 
     public function test_each_record_kind_keeps_its_key_set(): void
     {
-        // `stopwatch:runs:show` and the MCP show tool print these records as they are,
-        // so the keys and their order are a contract. A rename here must be deliberate.
+        // In JSON format, `stopwatch:runs:show` and the MCP show tool print these
+        // records as they are, so the keys and their order are a contract.
         config()->set('stopwatch.debug.max_records', 1);
 
         stopwatch()->probe('kept');

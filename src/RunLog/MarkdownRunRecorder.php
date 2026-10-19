@@ -194,10 +194,8 @@ final readonly class MarkdownRunRecorder implements RunRecorder
     }
 
     /**
-     * A captured exception marks the run as threw on its own, so a run captured the
-     * documented way (exception only, no `threw` run context) still lists under
-     * `--threw`. Read from the bag directly: `collectExceptions` gates the exception
-     * detail, not the flag.
+     * A captured exception sets `threw` even when `collectExceptions` is off. That
+     * flag gates only the exception detail.
      *
      * @param array<string, scalar|null> $runContext
      */

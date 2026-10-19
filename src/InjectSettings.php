@@ -15,7 +15,7 @@ final readonly class InjectSettings
         }
 
         // Octane keeps the Stopwatch singleton alive across requests, so a
-        // stale run would be reported. The injector refuses there as well.
+        // stale run would be reported. The inject middleware relies on this check.
         if (app()->bound('octane')) {
             return false;
         }
@@ -27,6 +27,9 @@ final readonly class InjectSettings
         return InjectEnvironmentGate::allows(config('stopwatch.inject.allowed_environments', 'local'));
     }
 
+    /**
+     * @internal
+     */
     public static function mode(): InjectMode
     {
         return InjectMode::fromConfig(config('stopwatch.inject.mode', 'off'));

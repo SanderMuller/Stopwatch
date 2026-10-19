@@ -211,10 +211,8 @@ final class Stopwatch implements Arrayable, Htmlable, Jsonable, Stringable
     }
 
     /**
-     * Drops the active run without recording it and without starting a new one,
-     * so {@see started()} is false again, as before the first start. Listeners are
-     * not notified, so it suits a run without checkpoints: a listener that heard a
-     * checkpoint gets no end for that run.
+     * Ends the run without recording it or notifying listeners, and starts no new one.
+     * Use it only for a run without checkpoints.
      *
      * @internal Auto lifecycle drops runs that reached no checkpoint.
      */

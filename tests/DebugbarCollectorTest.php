@@ -3,10 +3,13 @@
 namespace SanderMuller\Stopwatch\Tests;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use SanderMuller\Stopwatch\Clock;
 use SanderMuller\Stopwatch\FakeClock;
 use SanderMuller\Stopwatch\Integrations\DebugbarCollector;
 use SanderMuller\Stopwatch\Stopwatch;
+use SanderMuller\Stopwatch\StopwatchCheckpoint;
 
 final class DebugbarCollectorTest extends TestCase
 {
@@ -128,6 +131,23 @@ final class DebugbarCollectorTest extends TestCase
         $data = $collector->collect();
 
         self::assertSame('val', $data['measures'][0]['params']['key']);
+    }
+
+    public function test_collect_puts_query_http_and_memory_totals_in_params(): void
+    {
+        Http::fake(['api.example.com/*' => Http::response('ok', 200)]);
+        $stopwatch = stopwatch()->withQueryTracking()->withHttpTracking()->withMemoryTracking()->start();
+
+        DB::select('SELECT 1');
+        Http::get('https://api.example.com/users');
+        $stopwatch->checkpoint('Tracked');
+
+        $params = (new DebugbarCollector($stopwatch))->collect()['measures'][0]['params'];
+        $checkpoint = $stopwatch->checkpoints()[0];
+
+        self::assertSame("1q / {$checkpoint->queryTimeMs}ms", $params['queries']);
+        self::assertSame("1h / {$checkpoint->httpTimeMs}ms", $params['http']);
+        self::assertSame(StopwatchCheckpoint::formatMemoryDelta((int) $checkpoint->memoryDelta), $params['memory']);
     }
 
     public function test_collect_handles_empty_stopwatch(): void

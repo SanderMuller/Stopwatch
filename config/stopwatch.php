@@ -309,9 +309,10 @@ return [
     |   `StopwatchInjectMiddleware` and `StopwatchMiddleware::autoStart()` to
     |   the global middleware stack when `mode` is `all`, `route` or
     |   `attribute`, the environment is on the allow-list above, and the app
-    |   is not on Octane. The env var alone is then enough. Autostart also finishes every web request,
-    |   which emits a `Server-Timing` header and feeds the run log and
-    |   notifications. Set it to false to register the middleware by hand.
+    |   is not on Octane. The env var alone is then enough. Autostart also
+    |   finishes every web request, which emits a `Server-Timing` header and
+    |   feeds the run log and notifications. Set it to false to register the
+    |   middleware by hand.
     |
     | track:
     |   The toolbar prints a query count, an HTTP count and a memory delta per

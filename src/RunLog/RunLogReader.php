@@ -2,6 +2,8 @@
 
 namespace SanderMuller\Stopwatch\RunLog;
 
+use Illuminate\Support\Arr;
+
 /**
  * Read-side helper for {@see RunLogStore}. Parses frontmatter from the head of
  * each markdown file (bounded I/O) and returns sorted summaries. A run that only
@@ -63,8 +65,6 @@ final readonly class RunLogReader
     }
 
     /**
-     * The markdown file wins when its frontmatter parses; otherwise the stream, if any.
-     *
      * @param non-empty-list<string> $files
      * @return RunSummary|null
      */
@@ -88,13 +88,7 @@ final readonly class RunLogReader
      */
     private function fileWithExtension(array $files, string $extension): ?string
     {
-        foreach ($files as $file) {
-            if (pathinfo($file, PATHINFO_EXTENSION) === $extension) {
-                return $file;
-            }
-        }
-
-        return null;
+        return Arr::first($files, static fn (string $file): bool => pathinfo($file, PATHINFO_EXTENSION) === $extension);
     }
 
     private function readHead(string $file): ?string

@@ -42,7 +42,7 @@ final class DebugbarCollector extends DataCollector implements Renderable
      */
     public function collect(): array
     {
-        // Debugbar collects after the response, so the timeline shows the finished run.
+        // As toArray() did: finish the run, which also runs the recorders and notifications.
         $this->stopwatch->finish();
 
         $requestStart = $this->resolveRequestStart();

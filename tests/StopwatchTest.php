@@ -101,6 +101,11 @@ final class StopwatchTest extends TestCase
         self::assertEquals(25, $stopwatch->timeSinceLastCheckpoint()->totalMilliseconds);
     }
 
+    public function test_time_since_last_checkpoint_is_zero_before_start(): void
+    {
+        self::assertEquals(0, Stopwatch::new(clock: new FakeClock())->timeSinceLastCheckpoint()->totalMilliseconds);
+    }
+
     public function test_time_since_last_checkpoint_freezes_at_stop_before_any_checkpoint(): void
     {
         $clock = new FakeClock();
