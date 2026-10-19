@@ -8,6 +8,30 @@ All notable changes to this project are documented here. The format is based on
 upcoming release, add it to `RELEASE_NOTES_<version>.md` at the repo root —
 the release workflow promotes it into this file as part of the tag flow.
 
+## [v0.16.0](https://github.com/SanderMuller/Stopwatch/compare/v0.15.0...v0.16.0) - 2026-10-19
+
+<!-- verified-sha: 016ff00c4a2cb53d19d374b4b53fe6d9cc45c413 -->
+### Changed
+
+- Run-log `recorded_at` is now the run's start time; `stopwatch:runs:list` labels the column `Started`.
+  Run files written before this release keep the end time until pruning removes them.
+- The Debugbar timeline now shows checkpoints shorter than 1ms at their real width.
+- `started()` now returns false after auto lifecycle drops a run without checkpoints.
+
+### Fixed
+
+- Fixed runs captured with `TRANSIENT_EXCEPTION` missing from `stopwatch:runs:list --threw` and the MCP `threw` filter.
+- Fixed a deferred job losing its run after an earlier job recorded no checkpoints.
+- Fixed `STOPWATCH_INJECT=false`, `null`, `true` or a typo registering the toolbar middleware and forcing tracking.
+- Fixed a published `run_log` config without `min_duration_ms` logging every run; it now skips runs under 50ms.
+- Fixed `timeSinceLastCheckpoint()` counting on after `stop()` when no checkpoint was recorded.
+
+### Internal
+
+- Added StructArmed architecture checks to QA and CI (#12, #13) — thanks @samsonasik.
+
+**Full Changelog**: https://github.com/SanderMuller/Stopwatch/compare/v0.15.0...v0.16.0
+
 ## [v0.15.0](https://github.com/SanderMuller/Stopwatch/compare/v0.14.0...v0.15.0) - 2026-10-05
 
 <!-- verified-sha: e229755528ae3a7b8faddf61de40c0b6a3bd9126 -->
@@ -86,6 +110,7 @@ the release workflow promotes it into this file as part of the tag flow.
 - Autostart now runs on every web request under auto-registration, so `Server-Timing`, the run log and notifications activate with it. Opt out:
   ```dotenv
   STOPWATCH_INJECT_AUTO_REGISTER=false
+  
   
   
   
