@@ -37,7 +37,7 @@
         "symfony/var-dumper": "^7.3.3|^8.0"
     },
     "require-dev": {
-        "boundwize/structarmed": "^0.19",
+        "boundwize/structarmed": "^0.19 || ^0.20",
         "driftingly/rector-laravel": "^2.3",
         "fakerphp/faker": "^1.24",
         "fruitcake/laravel-debugbar": "^4.2",
